@@ -1791,13 +1791,6 @@
       // 클라우드
       { serviceId:'icloud',     name:'iCloud+',        icon:'☁️', category:'cloud',       defaultPrice:1200,   currency:'KRW' },
       { serviceId:'google_one', name:'Google One',     icon:'🗄️', category:'cloud',       defaultPrice:2400,   currency:'KRW' },
-      // 무료 플랜
-      { serviceId:'notion_free',  name:'Notion (무료)',  icon:'📝', category:'productivity', defaultPrice:0, currency:'KRW' },
-      { serviceId:'figma_free',   name:'Figma (무료)',   icon:'🎨', category:'design',       defaultPrice:0, currency:'KRW' },
-      { serviceId:'canva_free',   name:'Canva (무료)',   icon:'🖼️', category:'design',       defaultPrice:0, currency:'KRW' },
-      { serviceId:'chatgpt_free', name:'ChatGPT (무료)', icon:'🤖', category:'ai',           defaultPrice:0, currency:'KRW' },
-      { serviceId:'claude_free',  name:'Claude (무료)',  icon:'🧠', category:'ai',           defaultPrice:0, currency:'KRW' },
-      { serviceId:'github_free',  name:'GitHub (무료)',  icon:'💻', category:'dev',          defaultPrice:0, currency:'KRW' },
     ];
 
     function renderStep1() {
@@ -1870,7 +1863,7 @@
       wrap.innerHTML = `
         <div style="text-align:center;margin-bottom:24px">
           <h2 style="font-size:1.2rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:8px">선택한 서비스의 요금을 확인해주세요</h2>
-          <p class="text-muted text-sm">기본 요금이 자동으로 채워졌어요. 실제 결제 금액이 다르면 수정해 주세요.</p>
+          <p class="text-muted text-sm">기본 요금이 자동으로 채워졌어요. 무료 플랜을 쓰고 있다면 토글로 바꿔주세요.</p>
         </div>
         <div id="ob-price-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px"></div>
         <div style="background:var(--c-surface2);border:1px dashed var(--c-border);border-radius:var(--r-md);padding:12px 16px;margin-bottom:20px;font-size:0.82rem;color:var(--c-muted)">
@@ -1882,22 +1875,78 @@
         </div>`;
       container.appendChild(wrap);
 
+      // 서비스별 가격 상태 맵 { serviceId: { isFree, price } }
+      const priceState = {};
+
       const list = wrap.querySelector('#ob-price-list');
       selectedServices.forEach(svc => {
-        const priceKRW = svc.currency === 'USD'
+        const defaultKRW = svc.currency === 'USD'
           ? Math.round(svc.defaultPrice * USD_RATE)
           : svc.defaultPrice;
+        const dbInfo = AppServiceDB.autofill(svc.serviceId) || {};
+        const hasFreePlan = dbInfo.hasFreePlan || false;
+
+        priceState[svc.serviceId] = { isFree: false, price: defaultKRW };
+
         const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:11px 14px;';
-        row.innerHTML = `
+        row.style.cssText = 'background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);padding:12px 14px;transition:all 0.15s;';
+
+        // 상단: 아이콘 + 서비스명 + 무료 토글(있는 경우)
+        const topRow = document.createElement('div');
+        topRow.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:8px;';
+        topRow.innerHTML = `
           <span style="font-size:1.3rem;flex-shrink:0">${svc.icon}</span>
           <span style="font-weight:600;font-size:0.88rem;flex:1">${svc.name}</span>
-          <div style="display:flex;align-items:center;gap:6px">
-            <input type="number" class="form-input ob-price-input" data-id="${svc.serviceId}"
-              value="${priceKRW}" style="width:110px;text-align:right;padding:6px 10px;font-size:0.85rem">
-            <span class="text-xs text-muted">원/월</span>
-          </div>`;
+          ${hasFreePlan ? `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.75rem;color:var(--c-muted);white-space:nowrap">
+            <input type="checkbox" class="ob-free-check" data-id="${svc.serviceId}" style="accent-color:var(--c-green)">
+            무료 플랜 이용 중
+          </label>` : ''}`;
+        row.appendChild(topRow);
+
+        // 하단: 가격 입력
+        const priceRow = document.createElement('div');
+        priceRow.className = `ob-price-row-${svc.serviceId}`;
+        priceRow.style.cssText = 'display:flex;align-items:center;gap:8px;';
+        priceRow.innerHTML = `
+          <div style="flex:1;background:var(--c-surface2);border-radius:var(--r-sm);padding:3px 8px;display:flex;align-items:center;gap:4px">
+            <span class="text-xs text-muted" style="flex-shrink:0">₩</span>
+            <input type="number" class="ob-price-input" data-id="${svc.serviceId}"
+              value="${defaultKRW}" min="0"
+              style="flex:1;background:none;border:none;outline:none;font-size:0.88rem;font-weight:600;color:var(--c-text);text-align:right;padding:5px 4px">
+          </div>
+          <span class="text-xs text-muted" style="flex-shrink:0">원 / 월</span>`;
+
+        // 무료 플랜 배지 (기본 숨김)
+        const freeBadge = document.createElement('div');
+        freeBadge.className = `ob-free-badge-${svc.serviceId}`;
+        freeBadge.style.display = 'none';
+        freeBadge.innerHTML = `<span class="badge badge-green" style="font-size:0.78rem;padding:5px 14px">무료 플랜</span>
+          <span class="text-xs text-muted" style="margin-left:6px">가격 분석에서 제외됩니다</span>`;
+
+        row.appendChild(priceRow);
+        row.appendChild(freeBadge);
         list.appendChild(row);
+
+        // 무료 체크박스 이벤트
+        row.querySelector(`.ob-free-check`)?.addEventListener('change', e => {
+          const isFree = e.target.checked;
+          priceState[svc.serviceId].isFree = isFree;
+          const priceRowEl = row.querySelector(`.ob-price-row-${svc.serviceId}`);
+          const badgeEl    = row.querySelector(`.ob-free-badge-${svc.serviceId}`);
+          const input      = row.querySelector('.ob-price-input');
+          if (isFree) {
+            priceRowEl.style.display = 'none';
+            badgeEl.style.display = 'flex';
+            badgeEl.style.alignItems = 'center';
+            input.value = '0';
+            row.style.borderColor = 'rgba(46,204,138,0.3)';
+          } else {
+            priceRowEl.style.display = 'flex';
+            badgeEl.style.display = 'none';
+            input.value = defaultKRW;
+            row.style.borderColor = 'var(--c-border)';
+          }
+        });
       });
 
       wrap.querySelector('#ob-back').addEventListener('click', () => { step = 1; renderStep1(); });
@@ -1908,7 +1957,8 @@
         inputs.forEach(input => {
           const svc = selectedServices.find(s => s.serviceId === input.dataset.id);
           if (!svc) return;
-          const price = parseInt(input.value) || 0;
+          const ps = priceState[svc.serviceId];
+          const price = ps.isFree ? 0 : (parseInt(input.value) || 0);
           const dbInfo = AppServiceDB.autofill(svc.serviceId) || {};
           state.subscriptions.push({
             id: 'sub_' + svc.serviceId + '_' + Date.now(),
