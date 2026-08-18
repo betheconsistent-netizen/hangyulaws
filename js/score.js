@@ -147,8 +147,12 @@
       const hours = serviceSummary.totalAdjustedSec / 3600;
       const costPerHour = hours > 0 ? monthlyKRW / hours : null;
       if (costPerHour !== null) {
+        // 카테고리별 기준값 적용 (없으면 기본값)
+        const baseline = (CFG.COST_PER_HOUR_BASELINE_BY_CATEGORY &&
+                          CFG.COST_PER_HOUR_BASELINE_BY_CATEGORY[sub.category])
+                         || CFG.COST_PER_HOUR_BASELINE;
         components.costEfficiency = Math.min(100,
-          (CFG.COST_PER_HOUR_BASELINE / costPerHour) * 50
+          (baseline / costPerHour) * 50
         );
       } else {
         components.costEfficiency = null;

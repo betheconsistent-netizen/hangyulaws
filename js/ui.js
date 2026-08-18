@@ -18,8 +18,8 @@
     const desc  = AppConfig.COVERAGE_DESCRIPTIONS[tier];
     const pct   = tier === 'A' ? 100 : tier === 'B' ? 50 : 0;
     const colorClass = tier === 'A' ? 'coverage-a' : tier === 'B' ? 'coverage-b' : 'coverage-c';
-    return `<span class="badge ${colorClass}" data-tooltip="${desc}" style="gap:5px">
-      <span style="display:inline-block;width:28px;height:4px;background:var(--c-border);border-radius:2px;vertical-align:middle;overflow:hidden">
+    return `<span class="badge ${colorClass}" data-tooltip="${desc}" style="gap:5px;max-width:none">
+      <span style="display:inline-block;width:28px;height:4px;background:var(--c-border);border-radius:2px;vertical-align:middle;overflow:hidden;flex-shrink:0">
         <span style="display:block;height:100%;width:${pct}%;background:${tier==='A'?'var(--c-green)':tier==='B'?'var(--c-yellow)':'var(--c-muted)'};border-radius:2px"></span>
       </span>
       ${label}
@@ -141,28 +141,38 @@
     const covSummary = AppCoverage.getCoverageSummary(coverageMap);
     const trackedCount = covSummary.measured + covSummary.partial;
 
+    // 월 구독비 강조 배너 (상단 중앙)
+    const heroBanner = document.createElement('div');
+    heroBanner.style.cssText = 'text-align:center;padding:24px 20px 20px;background:linear-gradient(135deg,rgba(91,127,255,0.08),rgba(155,125,255,0.06));border:1px solid rgba(91,127,255,0.15);border-radius:var(--r-lg);margin-bottom:18px;';
+    heroBanner.innerHTML = `
+      <div style="font-size:0.75rem;color:var(--c-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">이번 달 구독 총액</div>
+      <div style="font-size:2.6rem;font-weight:900;letter-spacing:-0.04em;background:var(--g-accent);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1">${krw(totalMonthly)}</div>
+      <div style="font-size:0.8rem;color:var(--c-muted);margin-top:8px">연간 ${krw(totalMonthly * 12)} · 구독 ${subs.length}개 · 추적 중 ${trackedCount}개</div>
+      ${analysis.summary.monthlySavingsKRW > 0 ? `<div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;background:rgba(46,204,138,0.1);border:1px solid rgba(46,204,138,0.2);border-radius:20px;padding:4px 14px;font-size:0.78rem;color:var(--c-green)">💡 월 ${krw(analysis.summary.monthlySavingsKRW)} 절감 가능</div>` : ''}`;
+    container.appendChild(heroBanner);
+
     const summaryGrid = document.createElement('div');
     summaryGrid.className = 'summary-grid';
     summaryGrid.innerHTML = `
       <div class="summary-card">
-        <div class="summary-label">월 구독비</div>
-        <div class="summary-value">${krw(totalMonthly)}</div>
-        <div class="summary-sub">연 환산 ${krw(totalMonthly * 12)}</div>
+        <div class="summary-label">해지 검토</div>
+        <div class="summary-value" style="color:var(--c-red)">${analysis.summary.cancelCount}<span style="font-size:0.9rem;font-weight:400;color:var(--c-muted)">개</span></div>
+        <div class="summary-sub">절감 가능 ${krw(analysis.summary.monthlySavingsKRW)}/월</div>
       </div>
       <div class="summary-card">
-        <div class="summary-label">구독 수</div>
-        <div class="summary-value">${subs.length}<span style="font-size:0.9rem;font-weight:400;color:var(--c-muted)">개</span></div>
-        <div class="summary-sub">활성 구독 서비스</div>
+        <div class="summary-label">정상 유지</div>
+        <div class="summary-value" style="color:var(--c-green)">${analysis.summary.keepCount}<span style="font-size:0.9rem;font-weight:400;color:var(--c-muted)">개</span></div>
+        <div class="summary-sub">잘 활용 중인 서비스</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">데이터 부족</div>
+        <div class="summary-value" style="color:var(--c-muted)">${analysis.summary.holdCount}<span style="font-size:0.9rem;font-weight:400;color:var(--c-muted)">개</span></div>
+        <div class="summary-sub">수집기 연결 권장</div>
       </div>
       <div class="summary-card">
         <div class="summary-label">추적 중</div>
         <div class="summary-value">${trackedCount}<span style="font-size:0.9rem;font-weight:400;color:var(--c-muted)"> / ${subs.length}</span></div>
         <div class="summary-sub">사용량 측정 중인 서비스</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-label">예상 절감액</div>
-        <div class="summary-value" style="color:var(--c-green)">${krw(analysis.summary.monthlySavingsKRW)}</div>
-        <div class="summary-sub">해지 검토 ${analysis.summary.cancelCount}건 · 연 ${krw(analysis.summary.monthlySavingsKRW * 12)}</div>
       </div>`;
     container.appendChild(summaryGrid);
 
@@ -175,55 +185,95 @@
     const listCard = document.createElement('div');
     listCard.className = 'card';
     listCard.style.marginBottom = '0';
-    listCard.innerHTML = `<div class="card-header">
-      <span class="card-title">구독 현황</span>
-      <button class="btn btn-sm btn-ghost" id="btn-goto-subs">전체 보기 →</button>
-    </div>`;
-    const subList = document.createElement('div');
-    subList.className = 'sub-list';
 
-    subs.slice(0, 6).forEach(sub => {
-      const tier    = coverageMap[sub.serviceId] ? coverageMap[sub.serviceId].tier : 'C';
-      const summary = AppUsage.getServiceSummary(aggregated, sub.serviceId, TODAY, 30);
-      const recItem = analysis.items.find(r => r.serviceId === sub.serviceId);
-      const recLbl  = recItem ? recItem.recommendation.label : '-';
-      const recColor = recLbl === '유지' ? 'badge-green' : recLbl === '해지 검토' ? 'badge-red' : recLbl === '다운그레이드 검토' ? 'badge-yellow' : 'badge-gray';
+    // 정렬 옵션 상태 (로컬)
+    let dashSort = 'attention'; // 기본: 주의 필요순
 
-      const sparkVals = AppUsage.dateRange(
-        new Date(new Date(TODAY+'T00:00:00Z').getTime() - 13*86400000).toISOString().slice(0,10), TODAY
-      ).map(d => Math.round((summary.dailyAdjustedSec[d] || 0) / 60));
+    function renderSubList() {
+      listCard.innerHTML = `<div class="card-header">
+        <span class="card-title">구독 현황</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select id="dash-sort" class="form-select" style="font-size:0.75rem;padding:4px 8px;width:auto">
+            <option value="attention" ${dashSort==='attention'?'selected':''}>주의 필요순</option>
+            <option value="usage"     ${dashSort==='usage'?'selected':''}>사용량순</option>
+            <option value="cost"      ${dashSort==='cost'?'selected':''}>비용순</option>
+          </select>
+          <button class="btn btn-sm btn-ghost" id="btn-goto-subs">전체 보기 →</button>
+        </div>
+      </div>`;
 
-      const card = document.createElement('div');
-      card.className = 'sub-card';
-      card.style.gridTemplateColumns = '44px 1fr 70px auto auto';
-      card.dataset.serviceId = sub.serviceId;
-
-      const sparkWrap = document.createElement('div');
-      sparkWrap.style.cssText = 'width:70px;height:28px;display:flex;align-items:center;';
-      if (tier !== 'C') {
-        sparkWrap.appendChild(AppCharts.sparkline(sparkVals, { w: 70, h: 28 }));
-      } else {
-        sparkWrap.innerHTML = '<span style="font-size:0.62rem;color:var(--c-muted)">추적 안 됨</span>';
+      const REC_ORDER = { '해지 검토': 0, '다운그레이드 검토': 1, '판단 보류': 2, '유지': 3 };
+      let sorted = subs.slice();
+      if (dashSort === 'attention') {
+        sorted.sort((a, b) => {
+          const ra = analysis.items.find(r => r.serviceId === a.serviceId)?.recommendation.label || '유지';
+          const rb = analysis.items.find(r => r.serviceId === b.serviceId)?.recommendation.label || '유지';
+          return (REC_ORDER[ra] ?? 4) - (REC_ORDER[rb] ?? 4);
+        });
+      } else if (dashSort === 'usage') {
+        sorted.sort((a, b) => {
+          const ua = AppUsage.getServiceSummary(aggregated, a.serviceId, TODAY, 30).avgDailyAdjustedMin;
+          const ub = AppUsage.getServiceSummary(aggregated, b.serviceId, TODAY, 30).avgDailyAdjustedMin;
+          return ub - ua;
+        });
+      } else if (dashSort === 'cost') {
+        sorted.sort((a, b) =>
+          AppCatalog.toMonthlyAmount(b.price, b.billingCycle) -
+          AppCatalog.toMonthlyAmount(a.price, a.billingCycle)
+        );
       }
 
-      card.innerHTML = `
-        <div class="sub-icon">${svcIcon(sub.serviceId)}</div>
-        <div class="sub-info">
-          <div class="sub-name">${sub.serviceName}</div>
-          <div class="sub-plan">${sub.planName} · ${coverageBadge(tier)}</div>
-        </div>`;
-      card.appendChild(sparkWrap);
-      const priceDiv = document.createElement('div');
-      priceDiv.className = 'sub-price';
-      priceDiv.innerHTML = `<div class="price-val">${krw(AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle))}</div><div class="price-lbl">/월</div>`;
-      card.appendChild(priceDiv);
-      const actDiv = document.createElement('div');
-      actDiv.innerHTML = `<span class="badge ${recColor}">${recLbl}</span>`;
-      card.appendChild(actDiv);
-      card.addEventListener('click', e => { if (!e.target.closest('button')) navigate('detail', { serviceId: sub.serviceId }); });
-      subList.appendChild(card);
-    });
-    listCard.appendChild(subList);
+      const subList = document.createElement('div');
+      subList.className = 'sub-list';
+
+      sorted.slice(0, 6).forEach(sub => {
+        const tier    = coverageMap[sub.serviceId] ? coverageMap[sub.serviceId].tier : 'C';
+        const summary = AppUsage.getServiceSummary(aggregated, sub.serviceId, TODAY, 30);
+        const recItem = analysis.items.find(r => r.serviceId === sub.serviceId);
+        const recLbl  = recItem ? recItem.recommendation.label : '-';
+        const recColor = recLbl === '유지' ? 'badge-green' : recLbl === '해지 검토' ? 'badge-red' : recLbl === '다운그레이드 검토' ? 'badge-yellow' : 'badge-gray';
+
+        const sparkVals = AppUsage.dateRange(
+          new Date(new Date(TODAY+'T00:00:00Z').getTime() - 13*86400000).toISOString().slice(0,10), TODAY
+        ).map(d => Math.round((summary.dailyAdjustedSec[d] || 0) / 60));
+
+        const card = document.createElement('div');
+        card.className = 'sub-card';
+        card.style.gridTemplateColumns = '44px 1fr 70px auto auto';
+        card.dataset.serviceId = sub.serviceId;
+
+        const sparkWrap = document.createElement('div');
+        sparkWrap.style.cssText = 'width:70px;height:28px;display:flex;align-items:center;';
+        if (tier !== 'C') {
+          sparkWrap.appendChild(AppCharts.sparkline(sparkVals, { w: 70, h: 28 }));
+        } else {
+          sparkWrap.innerHTML = '<span style="font-size:0.62rem;color:var(--c-muted)">추적 안 됨</span>';
+        }
+
+        card.innerHTML = `
+          <div class="sub-icon">${svcIcon(sub.serviceId)}</div>
+          <div class="sub-info">
+            <div class="sub-name">${sub.serviceName}</div>
+            <div class="sub-plan">${sub.planName} · ${coverageBadge(tier)}</div>
+          </div>`;
+        card.appendChild(sparkWrap);
+        const priceDiv = document.createElement('div');
+        priceDiv.className = 'sub-price';
+        priceDiv.innerHTML = `<div class="price-val">${krw(AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle))}</div><div class="price-lbl">/월</div>`;
+        card.appendChild(priceDiv);
+        const actDiv = document.createElement('div');
+        actDiv.innerHTML = `<span class="badge ${recColor}">${recLbl}</span>`;
+        card.appendChild(actDiv);
+        card.addEventListener('click', e => { if (!e.target.closest('button,select')) navigate('detail', { serviceId: sub.serviceId }); });
+        subList.appendChild(card);
+      });
+
+      listCard.appendChild(subList);
+      listCard.querySelector('#dash-sort')?.addEventListener('change', e => { dashSort = e.target.value; renderSubList(); });
+      listCard.querySelector('#btn-goto-subs')?.addEventListener('click', () => navigate('subscriptions'));
+    }
+
+    renderSubList();
     leftCol.appendChild(listCard);
 
     // ── 우: 결제 + 인사이트 ──
@@ -278,8 +328,6 @@
     const applyLayout = () => { twoCol.style.gridTemplateColumns = mq.matches ? '1fr' : '1fr 320px'; };
     applyLayout();
     mq.addEventListener('change', applyLayout);
-
-    container.querySelector('#btn-goto-subs')?.addEventListener('click', () => navigate('subscriptions'));
   });
   /* ══════════════════════════════════════════
    * VIEW: SUBSCRIPTIONS (목록 + CRUD)
@@ -295,7 +343,7 @@
     filterBar.className = 'filter-bar';
     filterBar.innerHTML = `
       <select class="form-select" id="f-category"><option value="">카테고리 전체</option>
-        ${['ai','design','productivity','media','dev','other'].map(c=>`<option value="${c}">${c}</option>`).join('')}
+        ${Object.entries(AppConfig.CATEGORIES).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('')}
       </select>
       <select class="form-select" id="f-rec"><option value="">추천 전체</option>
         ${['유지','해지 검토','다운그레이드 검토','판단 보류'].map(r=>`<option value="${r}">${r}</option>`).join('')}
@@ -509,26 +557,33 @@
       const note = document.createElement('p');
       note.className = 'text-xs text-muted';
       note.style.marginTop = '8px';
-      note.textContent = ri ? ri.recommendation.reason : '데이터가 부족해 점수를 산출하지 않습니다.';
+      // 사용자 친화적 판단 보류 메시지
+      const holdMsg = coverageTier === 'C'
+        ? '이 서비스는 아직 사용 시간 측정이 되지 않아 분석할 수 없어요. 기기를 연결하면 바로 분석이 시작됩니다.'
+        : '아직 충분한 데이터가 모이지 않았어요. 조금 더 사용하면 분석이 가능합니다.';
+      note.textContent = ri ? ri.recommendation.reason || holdMsg : holdMsg;
       scoreCard.appendChild(note);
     }
     container.appendChild(scoreCard);
 
     // Confidence 카드
     if (sc?.confidence) {
+      const confGradeText = sc.confidence.grade === 'High'
+        ? '분석 신뢰도가 높아요'
+        : sc.confidence.grade === 'Medium'
+          ? '데이터가 더 쌓이면 더 정확해져요'
+          : '아직 데이터가 부족해요';
       const confCard = document.createElement('div');
       confCard.className = 'card';
-      confCard.innerHTML = `<div class="card-header"><span class="card-title">🎯 신뢰도 (Confidence)</span>
-        <span class="badge ${sc.confidence.grade==='High'?'badge-green':sc.confidence.grade==='Medium'?'badge-yellow':'badge-gray'}">${sc.confidence.grade}</span>
+      confCard.innerHTML = `<div class="card-header">
+        <span class="card-title">📊 분석 신뢰도</span>
+        <span class="badge ${sc.confidence.grade==='High'?'badge-green':sc.confidence.grade==='Medium'?'badge-yellow':'badge-gray'}">${confGradeText}</span>
       </div>
       <div class="confidence-row conf-${sc.confidence.grade}">
-        <span class="text-xs text-muted" style="width:100px">종합</span>
+        <span class="text-xs text-muted" style="width:80px;flex-shrink:0">신뢰도</span>
         <div class="conf-bar-bg"><div class="conf-bar-fill" style="width:${Math.round(sc.confidence.value*100)}%"></div></div>
-        <span class="text-xs">${Math.round(sc.confidence.value*100)}%</span>
-      </div>
-      <p class="text-xs text-muted" style="margin-top:8px">
-        커버리지(${Math.round(sc.confidence.coverageFactor*100)}%) · 관측기간(${Math.round(sc.confidence.daysFactor*100)}%) · 코호트(${Math.round(sc.confidence.cohortFactor*100)}%)
-      </p>`;
+        <span class="text-xs" style="flex-shrink:0">${Math.round(sc.confidence.value*100)}%</span>
+      </div>`;
       container.appendChild(confCard);
     }
 
@@ -795,10 +850,40 @@
    * ══════════════════════════════════════════ */
   registerView('insights', function (container) {
     const C = global._computed;
+    const state = global._appState;
     if (!C) return;
-    const { classified } = C;
+    const { classified, coverageMap } = C;
     const ICONS = { billing_deadline:'⏰', price_increase_confirmed:'💰', saving_opportunity:'✂️', overlap_resolved:'🔗', info:'ℹ️' };
     const PCLASS = [null,'p1','p2','p3','p4','p5'];
+
+    // 추적 안 됨 서비스 가이드 배너
+    const untrackedSubs = (state?.subscriptions || []).filter(s => {
+      const tier = coverageMap?.[s.serviceId]?.tier;
+      return tier === 'C' && s.collectible !== false;
+    });
+    if (untrackedSubs.length > 0) {
+      const guideBanner = document.createElement('div');
+      guideBanner.style.cssText = 'background:rgba(91,127,255,0.08);border:1px solid rgba(91,127,255,0.2);border-radius:var(--r-md);padding:14px 16px;margin-bottom:18px;';
+      guideBanner.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span style="font-size:1.2rem">📡</span>
+          <strong style="font-size:0.9rem">사용 시간 추적을 시작해보세요</strong>
+        </div>
+        <p class="text-sm text-muted" style="margin-bottom:10px">
+          <strong style="color:var(--c-text)">${untrackedSubs.length}개 서비스</strong>가 아직 추적되지 않고 있어요.
+          추적이 시작되면 실제 사용 패턴을 바탕으로 더 정확한 분석이 가능합니다.
+        </p>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+          ${untrackedSubs.slice(0,5).map(s => `<span class="badge badge-gray">${svcIcon(s.serviceId)} ${s.serviceName}</span>`).join('')}
+        </div>
+        <div style="font-size:0.8rem;color:var(--c-muted);line-height:1.6">
+          <div>1️⃣ <strong>브라우저 확장</strong> — Chrome/Edge 확장을 설치하면 웹 서비스 자동 추적</div>
+          <div>2️⃣ <strong>앱 연결</strong> — 모바일·데스크탑 앱에서 기기 연결 설정</div>
+          <div>3️⃣ <strong>직접 입력</strong> — 사용 시간을 직접 기록하는 방식도 지원 예정</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="AppUI.navigate('settings')">⚙️ 기기 설정으로 이동</button>`;
+      container.appendChild(guideBanner);
+    }
 
     function renderGroup(title, items, isSuppressed) {
       if (!items.length) return;
@@ -913,8 +998,14 @@
         h.innerHTML = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
           <span>${svcIcon(ri.serviceId)}</span><strong>${ri.serviceName}</strong>
         </div>
-        <p class="text-sm text-muted">${ri.recommendation.reason || '데이터가 부족해 판단하지 않습니다.'}</p>
-        <p class="text-xs text-muted" style="margin-top:6px">💡 수집기를 연결하면 사용량 측정이 가능합니다.</p>`;
+        <p class="text-sm text-muted">${
+          ri.scorecard?.coverageTier === 'C'
+            ? '아직 사용 시간이 추적되지 않아 분석을 시작할 수 없어요.'
+            : '사용 데이터가 아직 부족해요. 조금 더 써보면 분석이 가능합니다.'
+        }</p>
+        <p class="text-xs text-muted" style="margin-top:6px">
+          <button class="btn btn-ghost btn-xs" onclick="AppUI.navigate('settings')">⚙️ 기기 연결 설정 →</button>
+        </p>`;
         holdSec.appendChild(h);
       });
       container.appendChild(holdSec);
@@ -1132,23 +1223,22 @@
           <span style="font-size:1.1rem">📷</span>
           <div style="flex:1">
             <div class="text-sm font-bold">구독 화면에서 자동 불러오기</div>
-            <div class="text-xs text-muted">결제 문자, 앱 구독 화면을 캡처해 올리면 자동으로 채워줘요</div>
+            <div class="text-xs text-muted">결제 문자, 앱 구독 화면 캡처를 올리면 자동으로 채워줘요 (JPG·PNG·WEBP·HEIC)</div>
           </div>
           <label class="btn btn-secondary btn-sm" style="cursor:pointer">
             사진 올리기
-            <input type="file" id="ocr-upload" accept="image/*" style="display:none">
+            <input type="file" id="ocr-upload" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style="display:none">
           </label>
-          <button class="btn btn-secondary btn-sm" id="ocr-paste-btn">텍스트 붙여넣기</button>
         </div>` : ''}
         <form id="sub-form">
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">서비스명 *</label>
-              <input class="form-input" name="serviceName" required value="${existing?.serviceName||''}">
+              <input class="form-input" name="serviceName" required value="${existing?.serviceName||''}" placeholder="예: Netflix, Spotify" id="svc-name-input">
             </div>
             <div class="form-group">
               <label class="form-label">요금제명</label>
-              <input class="form-input" name="planName" value="${existing?.planName||''}">
+              <input class="form-input" name="planName" value="${existing?.planName||''}" placeholder="예: 스탠다드, Pro">
             </div>
           </div>
           <div class="form-row">
@@ -1168,7 +1258,7 @@
             <div class="form-group">
               <label class="form-label">카테고리</label>
               <select class="form-select" name="category">
-                ${['ai','design','productivity','media','dev','other'].map(c=>`<option value="${c}" ${existing?.category===c?'selected':''}>${c}</option>`).join('')}
+                ${Object.entries(AppConfig.CATEGORIES).map(([k,v])=>`<option value="${k}" ${existing?.category===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
               </select>
             </div>
             <div class="form-group">
@@ -1207,15 +1297,29 @@
     overlay.querySelector('#ocr-upload')?.addEventListener('change', async e => {
       const file = e.target.files[0];
       if (!file) return;
+      const allowed = ['image/jpeg','image/png','image/webp','image/heic','image/heif'];
+      if (!allowed.includes(file.type) && !file.name.match(/\.(jpe?g|png|webp|heic|heif)$/i)) {
+        alert('JPG, PNG, WEBP, HEIC 파일만 업로드할 수 있습니다.');
+        return;
+      }
       const result = await SubscriptionOCRProvider.extractFromImage(file);
       applyOCRResult(overlay, result);
     });
-    // OCR 텍스트 붙여넣기
-    overlay.querySelector('#ocr-paste-btn')?.addEventListener('click', () => {
-      const text = prompt('결제 문자나 구독 정보 텍스트를 붙여넣어 주세요:');
-      if (!text) return;
-      const result = AppOCR.extractFromText(text);
-      applyOCRResult(overlay, result);
+
+    // 서비스명 자동완성 (service-db)
+    overlay.querySelector('#svc-name-input')?.addEventListener('blur', e => {
+      if (existing) return; // 수정 시에는 건드리지 않음
+      const hint = AppServiceDB.autofill(e.target.value);
+      if (!hint) return;
+      const catSelect = overlay.querySelector('[name="category"]');
+      if (catSelect && !catSelect.value) catSelect.value = hint.category;
+      // 카테고리 자동 채움 안내
+      const note = overlay.querySelector('#autofill-note') || document.createElement('p');
+      note.id = 'autofill-note';
+      note.className = 'text-xs text-muted';
+      note.style.marginBottom = '8px';
+      note.textContent = `카테고리가 "${AppConfig.CATEGORIES[hint.category]?.label || hint.category}"로 자동 설정되었습니다.`;
+      overlay.querySelector('form')?.prepend(note);
     });
 
     overlay.querySelector('#sub-form').addEventListener('submit', e => {

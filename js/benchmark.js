@@ -183,6 +183,9 @@
 
     // 시간당 비용
     const totalAdjustedHours = serviceSummary.totalAdjustedSec / 3600;
+    const baseline = (CFG.COST_PER_HOUR_BASELINE_BY_CATEGORY &&
+                      CFG.COST_PER_HOUR_BASELINE_BY_CATEGORY[subscription.category])
+                     || CFG.COST_PER_HOUR_BASELINE;
     const costPerHour = totalAdjustedHours > 0
       ? monthlyKRW / totalAdjustedHours
       : null;

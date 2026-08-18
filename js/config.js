@@ -35,7 +35,6 @@ window.AppConfig = {
 
   /* ───── Score 컴포넌트 파라미터 ───── */
   TARGET_DAILY_MIN: 60,         // usageIntensity 100점 기준 일평균(분)
-  COST_PER_HOUR_BASELINE: 10000, // costEfficiency 50점 기준 시간당 비용(KRW)
 
   /* ───── 재정규화 하한 가드 ───── */
   MIN_AVAILABLE_WEIGHT: 0.40,   // 이 미만이면 점수 미산출 → '판단 보류'
@@ -79,6 +78,46 @@ window.AppConfig = {
 
   /* ───── Utilization ───── */
   UTILIZATION_BASELINE: 'p75',  // 분모 기준 (적극 활용 사용자 기준)
+
+  /* ───── 시간당 비용 기준 (카테고리별) ───── */
+  // 업무·개발 도구는 생산성 가치가 높아 기준 높게, 엔터테인먼트는 낮게
+  COST_PER_HOUR_BASELINE_BY_CATEGORY: {
+    ai:           15000,  // AI 도구: 업무 대체 가치 높음
+    dev:          15000,  // 개발 도구: 업무 직결
+    design:       12000,  // 디자인 도구
+    productivity: 10000,  // 생산성 도구
+    education:    8000,   // 교육
+    cloud:        8000,   // 클라우드 저장소
+    music:        3000,   // 음악: 여가
+    media:        3000,   // 영상: 여가
+    game:         4000,   // 게임: 여가+몰입도
+    shopping:     5000,   // 쇼핑: 절약 혜택 기반
+    delivery:     4000,   // 배달: 할인 혜택 기반
+    fitness:      6000,   // 피트니스
+    reading:      5000,   // 독서·뉴스
+    other:        8000,   // 기타
+  },
+  COST_PER_HOUR_BASELINE: 8000, // 카테고리 정보 없을 때 기본값
+
+  /* ───── 카테고리 목록 (한국어 레이블) ───── */
+  CATEGORIES: {
+    ai:           { label: 'AI 도구',    icon: '🤖' },
+    dev:          { label: '개발',        icon: '💻' },
+    design:       { label: '디자인',      icon: '🎨' },
+    productivity: { label: '생산성',      icon: '📋' },
+    media:        { label: '영상 스트리밍', icon: '🎬' },
+    music:        { label: '음악',        icon: '🎵' },
+    game:         { label: '게임',        icon: '🎮' },
+    shopping:     { label: '쇼핑',        icon: '🛒' },
+    delivery:     { label: '배달·배송',   icon: '🛵' },
+    cloud:        { label: '클라우드',    icon: '☁️' },
+    education:    { label: '교육',        icon: '📚' },
+    fitness:      { label: '피트니스',    icon: '💪' },
+    reading:      { label: '독서·뉴스',   icon: '📰' },
+    security:     { label: '보안',        icon: '🔒' },
+    finance:      { label: '금융',        icon: '💰' },
+    other:        { label: '기타',        icon: '📦' },
+  },
 
   /* ───── 추천 등급 레이블 ───── */
   RECOMMENDATION_LABELS: {

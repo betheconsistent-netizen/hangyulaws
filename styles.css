@@ -320,18 +320,19 @@ input, select, textarea { font-family: inherit; }
   background: #070910;
   color: var(--c-text2);
   font-size: 0.73rem;
-  white-space: nowrap;
-  max-width: 220px;
+  min-width: 180px;
+  max-width: 280px;
   white-space: normal;
   text-align: center;
-  padding: 6px 10px;
+  padding: 7px 12px;
   border-radius: var(--r-sm);
   border: 1px solid var(--c-border);
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.15s;
   z-index: 200;
-  line-height: 1.4;
+  line-height: 1.5;
+  box-shadow: var(--shadow-md);
 }
 [data-tooltip]:hover::after { opacity: 1; }
 
