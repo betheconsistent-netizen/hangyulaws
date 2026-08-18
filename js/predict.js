@@ -42,8 +42,8 @@
         : daysLeft === 0
           ? '오늘 결제 예정. 지금 해지하면 다음 주기부터 종료됩니다.'
           : daysLeft <= 3
-            ? `다음 결제 ${daysLeft}일 전. 지금 해지하면 이번 주기까지 사용 후 종료됩니다.`
-            : `다음 결제까지 ${daysLeft}일`,
+            ? `D-${daysLeft} 결제 임박. 지금 해지하면 이번 주기까지 사용 후 종료됩니다.`
+            : `다음 결제까지 D-${daysLeft}`,
       monthlyKRW: AppCatalog.toMonthlyAmount(subscription.price, subscription.billingCycle),
     };
   }

@@ -322,8 +322,8 @@
       const dText = b.daysUntilBilling === 0
         ? '오늘'
         : b.daysUntilBilling > 0
-          ? `D+${b.daysUntilBilling}`
-          : `D${b.daysUntilBilling}`;
+          ? `D-${b.daysUntilBilling}`
+          : `D+${Math.abs(b.daysUntilBilling)}`;
       item.innerHTML = `
         <span>${svcIcon(b.serviceId)}</span>
         <span style="flex:1;font-size:0.84rem;font-weight:500">${b.serviceName}</span>
@@ -532,7 +532,7 @@
         <div><div class="text-xs text-muted">시간당 비용</div><div class="font-bold">${sb.costPerHour ? krw(sb.costPerHour)+'/h' : '측정 안 됨'}</div></div>
         <div><div class="text-xs text-muted">미사용일</div><div class="font-bold">${tier==='C'?'측정 안 됨':sb.unusedDays+'일'}</div></div>
         <div><div class="text-xs text-muted">마지막 사용</div><div class="font-bold">${sb.lastUsedDate ? sb.daysSinceLastUse+'일 전' : (tier==='C'?'측정 안 됨':'없음')}</div></div>
-        <div><div class="text-xs text-muted">결제까지</div><div class="font-bold">${sb.daysUntilBilling === 0 ? '오늘' : sb.daysUntilBilling > 0 ? 'D+'+sb.daysUntilBilling : 'D'+sb.daysUntilBilling}</div></div>
+        <div><div class="text-xs text-muted">결제까지</div><div class="font-bold">${sb.daysUntilBilling === 0 ? '오늘' : sb.daysUntilBilling > 0 ? 'D-'+sb.daysUntilBilling : 'D+'+Math.abs(sb.daysUntilBilling)}</div></div>
       </div>`;
     }
     container.appendChild(hdr);
