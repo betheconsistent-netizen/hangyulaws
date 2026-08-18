@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>구독 가치 분석</title>
+  <link rel="stylesheet" href="styles.css">
+  <meta name="description" content="구독 서비스 가치 분석 및 관리 웹앱 MVP">
+</head>
+<body>
+
+<div id="app-shell">
+
+  <!-- ── 사이드바 ── -->
+  <nav id="sidebar" role="navigation" aria-label="주 메뉴">
+    <div class="sidebar-logo">
+      <h1>📊 SubValue</h1>
+      <p>구독 가치 분석</p>
+    </div>
+    <div class="sidebar-nav">
+      <button class="nav-item active" data-view="dashboard"      aria-label="대시보드">
+        <span class="nav-icon">🏠</span> 대시보드
+      </button>
+      <button class="nav-item" data-view="subscriptions"         aria-label="구독 목록">
+        <span class="nav-icon">📋</span> 구독 목록
+      </button>
+      <button class="nav-item" data-view="portfolio"             aria-label="구독 최적화 분석">
+        <span class="nav-icon">📊</span> 구독 최적화 분석
+      </button>
+      <button class="nav-item" data-view="calendar"              aria-label="결제 캘린더">
+        <span class="nav-icon">🗓️</span> 결제 캘린더
+      </button>
+      <button class="nav-item" data-view="insights"              aria-label="인사이트 & 알림">
+        <span class="nav-icon">🔔</span> 인사이트 & 알림
+        <span class="nav-badge" id="notif-badge" style="display:none">0</span>
+      </button>
+      <button class="nav-item" data-view="settings"              aria-label="설정">
+        <span class="nav-icon">⚙️</span> 설정
+      </button>
+    </div>
+  </nav>
+
+  <!-- 모바일 오버레이 -->
+  <div id="sidebar-overlay"></div>
+
+  <!-- ── 메인 ── -->
+  <div id="main-content">
+    <header id="app-header" role="banner">
+      <button id="sidebar-toggle" aria-label="메뉴 열기/닫기">☰</button>
+      <span id="header-title" class="header-title">대시보드</span>
+      <div class="header-actions">
+        <span class="badge badge-gray text-xs">v1.1</span>
+      </div>
+    </header>
+
+    <main id="view-container" role="main" aria-live="polite">
+      <!-- 뷰가 여기에 렌더링됩니다 -->
+      <div class="empty-state">
+        <div class="empty-icon"><span class="spinner"></span></div>
+        <p>로딩 중…</p>
+      </div>
+    </main>
+  </div>
+
+</div><!-- #app-shell -->
+
+<!-- ── JS 로드 순서: 의존성 순 ── -->
+<script src="js/config.js"></script>
+<script src="js/store.js"></script>
+<script src="js/demo-data.js"></script>
+<script src="js/service-db.js"></script>
+<script src="js/usage.js"></script>
+<script src="js/coverage.js"></script>
+<script src="js/benchmark.js"></script>
+<script src="js/score.js"></script>
+<script src="js/catalog.js"></script>
+<script src="js/changes.js"></script>
+<script src="js/peer.js"></script>
+<script src="js/predict.js"></script>
+<script src="js/recommend.js"></script>
+<script src="js/notify.js"></script>
+<script src="js/ocr.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/ui.js"></script>
+
+<script>
+  // 앱 진입점
+  document.addEventListener('DOMContentLoaded', function () {
+    try {
+      AppUI.initApp();
+    } catch (err) {
+      console.error('[App] 초기화 오류:', err);
+      document.getElementById('view-container').innerHTML =
+        '<div class="empty-state"><div class="empty-icon">⚠️</div>' +
+        '<p>앱 초기화 중 오류가 발생했습니다.<br>' +
+        '<span class="text-xs text-muted">' + err.message + '</span></p></div>';
+    }
+  });
+</script>
+</body>
+</html>
