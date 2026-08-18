@@ -1315,7 +1315,10 @@
           <div class="form-group">
             <label class="form-label">목적</label>
             <select class="form-select" name="purpose">
-              ${['work','study','personal','side_project'].map(p=>`<option value="${p}" ${existing?.purpose===p?'selected':''}>${p}</option>`).join('')}
+              <option value="work"         ${existing?.purpose==='work'        ?'selected':''}>💼 업무</option>
+              <option value="study"        ${existing?.purpose==='study'       ?'selected':''}>📚 학습</option>
+              <option value="personal"     ${existing?.purpose==='personal'    ?'selected':''}>🏠 개인</option>
+              <option value="side_project" ${existing?.purpose==='side_project'?'selected':''}>🚀 사이드 프로젝트</option>
             </select>
           </div>
           <div class="form-actions">
