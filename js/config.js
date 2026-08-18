@@ -90,22 +90,29 @@ window.AppConfig = {
 
   /* ───── 커버리지 배지 레이블 ───── */
   COVERAGE_LABELS: {
-    A: '실측',
-    B: '일부 실측',
-    C: '미측정',
+    A: '추적 중',
+    B: '일부 추적',
+    C: '추적 안 됨',
+  },
+
+  /* ───── 커버리지 상세 설명 (툴팁용) ───── */
+  COVERAGE_DESCRIPTIONS: {
+    A: '최근 14일간 정확하게 사용 시간을 측정하고 있습니다.',
+    B: '사용 시간을 일부 측정 중이나 정확도가 낮을 수 있습니다.',
+    C: '사용 시간을 측정하지 못하고 있습니다. 수집기를 연결하면 정확한 분석이 가능합니다.',
   },
 
   /* ───── 출처 배지 ───── */
   SOURCE_LABELS: {
-    measured:      '실측',
-    partial:       '일부 실측',
-    unmeasured:    '미측정',
+    measured:      '추적 중',
+    partial:       '일부 추적',
+    unmeasured:    '추적 안 됨',
     user_input:    '사용자 입력',
     user_survey:   '사용자 설문',
     demo:          '데모',
     official:      '공식 발표',
     human_verified:'검증됨',
-    auto_detected: '자동 감지',
+    auto_detected: '확인 필요',
   },
 
   /* ───── 검증 상태 레이블 ───── */

@@ -12,7 +12,19 @@
   };
   function svcIcon(id) { return SERVICE_ICONS[id] || '📦'; }
 
-  /* ─── KRW 포맷 ─── */
+  /* ─── 커버리지 배지 헬퍼 (진행률 + 툴팁 포함) ─── */
+  function coverageBadge(tier) {
+    const label = AppConfig.COVERAGE_LABELS[tier];
+    const desc  = AppConfig.COVERAGE_DESCRIPTIONS[tier];
+    const pct   = tier === 'A' ? 100 : tier === 'B' ? 50 : 0;
+    const colorClass = tier === 'A' ? 'coverage-a' : tier === 'B' ? 'coverage-b' : 'coverage-c';
+    return `<span class="badge ${colorClass}" data-tooltip="${desc}" style="gap:5px">
+      <span style="display:inline-block;width:28px;height:4px;background:var(--c-border);border-radius:2px;vertical-align:middle;overflow:hidden">
+        <span style="display:block;height:100%;width:${pct}%;background:${tier==='A'?'var(--c-green)':tier==='B'?'var(--c-yellow)':'var(--c-muted)'};border-radius:2px"></span>
+      </span>
+      ${label}
+    </span>`;
+  }
   function krw(n) { return '₩' + Math.round(n).toLocaleString(); }
   function fmtMin(min) {
     if (min === null || min === undefined) return '측정 안 됨';
@@ -39,7 +51,7 @@
     });
     document.getElementById('header-title').textContent = {
       dashboard: '대시보드', subscriptions: '구독 목록', detail: '서비스 상세',
-      insights: '인사이트 & 알림', portfolio: 'AI 포트폴리오 최적화', settings: '설정',
+      insights: '인사이트 & 알림', portfolio: '구독 최적화 분석', settings: '설정',
     }[view] || view;
 
     if (VIEWS[view]) VIEWS[view](container, resolvedParams);
@@ -197,7 +209,7 @@
         <div class="sub-icon">${svcIcon(sub.serviceId)}</div>
         <div class="sub-info">
           <div class="sub-name">${sub.serviceName}</div>
-          <div class="sub-plan">${sub.planName} · <span class="badge badge-sm coverage-${tier.toLowerCase()}">${AppConfig.COVERAGE_LABELS[tier]}</span></div>
+          <div class="sub-plan">${sub.planName} · ${coverageBadge(tier)}</div>
         </div>
         <div class="sub-usage">
           <div class="usage-val">${tier === 'C' ? '측정 안 됨' : fmtMin(summary.avgDailyAdjustedMin)}</div>
@@ -321,7 +333,7 @@
           <div class="sub-icon">${svcIcon(sub.serviceId)}</div>
           <div class="sub-info">
             <div class="sub-name">${sub.serviceName}</div>
-            <div class="sub-plan">${sub.planName} · <span class="badge coverage-${t.toLowerCase()}">${AppConfig.COVERAGE_LABELS[t]}</span></div>
+            <div class="sub-plan">${sub.planName} · ${coverageBadge(t)}</div>
           </div>
           <div class="sub-usage">
             <div class="usage-val">${t === 'C' ? '측정 안 됨' : fmtMin(sm.avgDailyAdjustedMin)}</div>
@@ -389,7 +401,7 @@
         </div>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
           <span class="badge ${recLbl==='유지'?'badge-green':recLbl==='해지 검토'?'badge-red':recLbl==='다운그레이드 검토'?'badge-yellow':'badge-gray'}" style="font-size:0.85rem;padding:4px 12px">${recLbl}</span>
-          <span class="badge coverage-${tier.toLowerCase()}">${AppConfig.COVERAGE_LABELS[tier]}</span>
+          ${coverageBadge(tier)}
         </div>
       </div>`;
 
@@ -523,21 +535,32 @@
     } else {
       // 코호트 벤치마크
       const { stats, n, fallbackDesc, fallbackLevel, canShowPercentile } = cohortResult;
-      card.innerHTML += `<p class="text-xs text-muted" style="margin-bottom:10px">비교 기준: ${fallbackDesc}</p>`;
+      card.innerHTML += `<p class="text-xs text-muted" style="margin-bottom:10px">비교 그룹: ${fallbackDesc}</p>`;
       const myAvg = sm.avgDailyAdjustedMin;
       const myPct = sc?.userPercentile;
-      card.innerHTML += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
-        <div><div class="text-xs text-muted">내 일평균</div><div class="font-bold">${fmtMin(myAvg)}</div></div>
-        <div><div class="text-xs text-muted">코호트 중간값</div><div class="font-bold">${fmtMin(stats.p50)}</div></div>
-        ${canShowPercentile && myPct !== null ? `<div><div class="text-xs text-muted">상위</div><div class="font-bold text-accent">${myPct}%</div></div>` : ''}
+      // 사용자 친화적 워딩: "상위 X%"가 아니라 "비슷한 사용자 중 상위 X%에 해당해요"
+      const topPctText = (canShowPercentile && myPct !== null)
+        ? myPct <= 20
+          ? `적극 활용 중이에요 (비슷한 사용자 상위 ${myPct}%)`
+          : myPct <= 50
+            ? `평균보다 많이 사용하고 있어요 (상위 ${myPct}%)`
+            : myPct <= 80
+              ? `평균 수준으로 사용하고 있어요 (상위 ${myPct}%)`
+              : `사용량이 적은 편이에요 (상위 ${myPct}%)`
+        : null;
+      card.innerHTML += `<div style="display:grid;grid-template-columns:repeat(${topPctText?3:2},1fr);gap:10px;margin-bottom:10px">
+        <div><div class="text-xs text-muted">내 일평균 사용</div><div class="font-bold">${fmtMin(myAvg)}</div></div>
+        <div><div class="text-xs text-muted">비슷한 사용자 평균</div><div class="font-bold">${fmtMin(stats.p50)}</div></div>
+        ${topPctText ? `<div><div class="text-xs text-muted">활용도</div><div class="font-bold text-accent text-xs" style="line-height:1.4">${topPctText}</div></div>` : ''}
       </div>`;
 
       // 이용률 (p75 기준)
       if (sc?.utilization !== null && sc?.utilization !== undefined) {
         const util = sc.utilization;
-        card.innerHTML += `<div class="text-sm"><span class="text-muted">금액 대비 활용도 (p75 기준): </span>
-          <strong>${Math.round(util * 100)}%</strong>
-          <span class="text-xs text-muted"> — p75 적극 활용자 대비 내 위치</span></div>`;
+        const utilText = util >= 0.8 ? '충분히 활용하고 있어요' : util >= 0.5 ? '적당히 활용 중이에요' : '활용도가 낮은 편이에요';
+        card.innerHTML += `<div class="text-sm"><span class="text-muted">활용도: </span>
+          <strong>${utilText}</strong>
+          <span class="text-xs text-muted"> (적극 사용자 대비 ${Math.round(util * 100)}%)</span></div>`;
       }
 
       // quota
@@ -659,6 +682,51 @@
     container.appendChild(wrap);
   }
 
+  /* ─── 신규 서비스 큐레이션 카드 ─── */
+  function renderCurationSection(container, subscriptions, catalog) {
+    // 현재 구독 카테고리 기반으로 같이 쓸 수 있는 서비스 추천
+    const CURATIONS = [
+      { serviceId:'notion',     name:'Notion',      icon:'📝', category:'productivity', desc:'문서·데이터베이스 관리에 많이 쓰여요', tags:['notes','database','writing'] },
+      { serviceId:'figma',      name:'Figma',        icon:'🎨', category:'design',       desc:'UI 디자인·프로토타이핑 도구예요',       tags:['design','prototyping'] },
+      { serviceId:'linear',     name:'Linear',       icon:'📐', category:'productivity', desc:'개발팀 이슈 트래킹에 인기 있어요',     tags:['project','dev'] },
+      { serviceId:'github_pro', name:'GitHub Pro',   icon:'💻', category:'dev',          desc:'코딩·오픈소스 작업에 필수예요',         tags:['code','dev'] },
+      { serviceId:'spotify',    name:'Spotify',      icon:'🎵', category:'media',         desc:'음악 스트리밍 서비스예요',               tags:['music','streaming'] },
+    ];
+
+    const myServiceIds = new Set(subscriptions.map(s => s.serviceId));
+    const myCategories = new Set(subscriptions.map(s => s.category));
+
+    // 이미 구독 중이 아닌 서비스 중 내 카테고리와 겹치는 것만
+    const suggestions = CURATIONS.filter(c =>
+      !myServiceIds.has(c.serviceId) && myCategories.has(c.category)
+    );
+    if (!suggestions.length) return;
+
+    const sec = document.createElement('div');
+    sec.className = 'portfolio-section';
+    sec.innerHTML = `<div class="portfolio-section-title">
+      <span>💡 비슷한 사용자들이 함께 쓰는 서비스</span>
+      <span class="text-xs text-muted" style="margin-left:auto;font-weight:400">큐레이션 · 제휴 관계 없음</span>
+    </div>`;
+
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;';
+    suggestions.forEach(s => {
+      const card = document.createElement('div');
+      card.className = 'card card-sm';
+      card.style.cursor = 'default';
+      card.innerHTML = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:1.3rem">${s.icon}</span>
+        <strong class="text-sm">${s.name}</strong>
+        <span class="badge badge-gray text-xs" style="margin-left:auto">${s.category}</span>
+      </div>
+      <p class="text-xs text-muted">${s.desc}</p>`;
+      grid.appendChild(card);
+    });
+    sec.appendChild(grid);
+    container.appendChild(sec);
+  }
+
   /* ─── 추천 근거 카드 ─── */
   function renderRecommendCard(container, ri, sub) {
     const card = document.createElement('div');
@@ -682,7 +750,7 @@
         card.appendChild(p);
       });
     }
-    card.innerHTML += `<p class="affiliate-note">제휴 관계: ${ri.affiliateDisclosure}</p>`;
+    card.innerHTML += `${ri.affiliateDisclosure && ri.affiliateDisclosure !== '제휴 관계 없음' ? `<p class="affiliate-note">⚠️ ${ri.affiliateDisclosure}</p>` : ''}`;
     container.appendChild(card);
   }
 
@@ -787,12 +855,15 @@
             }
             return '';
           }).join('') : ''}
-          <p class="affiliate-note">${ri.affiliateDisclosure}</p>`;
+          ${ri.affiliateDisclosure && ri.affiliateDisclosure !== '제휴 관계 없음' ? `<p class="affiliate-note">⚠️ ${ri.affiliateDisclosure}</p>` : ''}`;
         c.querySelector('.rec-card-header').addEventListener('click', () => navigate('detail', { serviceId: ri.serviceId }));
         sec.appendChild(c);
       });
       container.appendChild(sec);
     });
+
+    // 신규 서비스 큐레이션 (비슷한 구독을 쓰는 사람들이 함께 쓰는 서비스)
+    renderCurationSection(container, state.subscriptions, state.catalog);
 
     // 판단 보류 섹션
     const holdItems = analysis.items.filter(r => r.recommendation.label === LABELS.HOLD);
@@ -847,11 +918,23 @@
     /* ── 동의 설정 ── */
     const consentSec = document.createElement('div');
     consentSec.className = 'settings-section card';
-    consentSec.innerHTML = '<div class="settings-title">🔒 데이터 동의 (기본 off)</div>';
+    consentSec.innerHTML = '<div class="settings-title">🔒 개인정보 및 데이터 설정 <span class="text-xs text-muted" style="font-weight:400">(기본 꺼짐)</span></div>';
     const consentDefs = [
-      { key:'c1', label:'C1: 사용량 수집 및 대시보드 표시', desc:'끄면 모든 측정 기능이 비활성화됩니다.' },
-      { key:'c2', label:'C2: 익명 집계 벤치마크 기여', desc:'끄면 벤치마크가 self-benchmark로 대체됩니다.' },
-      { key:'c3', label:'C3: 익명 집계 통계 리서치·B2B 활용', desc:'C2 활성화 필요.' },
+      {
+        key: 'c1',
+        label: '사용 시간 추적',
+        desc: '각 구독 서비스를 얼마나 사용하는지 측정해요. 꺼두면 사용량 기반 분석이 모두 비활성화됩니다.',
+      },
+      {
+        key: 'c2',
+        label: '익명 비교 데이터 참여',
+        desc: '내 사용 패턴을 익명으로 제공해 "비슷한 사용자와 비교" 기능을 쓸 수 있어요. 개인 정보는 포함되지 않습니다.',
+      },
+      {
+        key: 'c3',
+        label: '서비스 개선 데이터 제공',
+        desc: '익명 통계가 서비스 리서치·개선에 활용될 수 있어요. 위 항목을 켜야 선택 가능합니다.',
+      },
     ];
     consentDefs.forEach(def => {
       const row = document.createElement('div');
@@ -887,7 +970,10 @@
     notifSec.className = 'settings-section card';
     notifSec.innerHTML = `<div class="settings-title">🔔 알림 설정</div>
       <div class="setting-row">
-        <div><div class="setting-label">주간 최대 알림 수</div></div>
+        <div>
+          <div class="setting-label">주간 최대 알림 수</div>
+          <div class="setting-desc">이 수를 초과하면 덜 중요한 알림은 앱 안에서만 보여요. 결제 임박 알림은 항상 표시됩니다.</div>
+        </div>
         <input type="number" class="form-input" id="weekly-budget" style="width:70px;text-align:center"
           value="${state.settings.notify?.weeklyBudget || AppConfig.MAX_PUSH_PER_WEEK}" min="0" max="10">
       </div>`;
@@ -959,6 +1045,38 @@
     });
   });
 
+  /* ─── OCR 결과 → 폼 자동 채우기 ─── */
+  function applyOCRResult(overlay, result) {
+    if (result.serviceName) {
+      const nameInput = overlay.querySelector('[name="serviceName"]');
+      if (nameInput) nameInput.value = result.serviceName;
+    }
+    if (result.price) {
+      const priceInput = overlay.querySelector('[name="price"]');
+      if (priceInput) priceInput.value = result.price;
+    }
+    if (result.billingCycle) {
+      const cycleSelect = overlay.querySelector('[name="billingCycle"]');
+      if (cycleSelect) cycleSelect.value = result.billingCycle;
+    }
+    if (result.nextBillingDate) {
+      const dateInput = overlay.querySelector('[name="nextBillingDate"]');
+      if (dateInput) dateInput.value = result.nextBillingDate;
+    }
+    if (result.category) {
+      const catSelect = overlay.querySelector('[name="category"]');
+      if (catSelect) catSelect.value = result.category;
+    }
+    // 신뢰도 안내
+    const confPct = Math.round((result.confidence || 0) * 100);
+    const note = overlay.querySelector('#ocr-note') || document.createElement('p');
+    note.id = 'ocr-note';
+    note.className = 'text-xs text-muted';
+    note.style.marginBottom = '10px';
+    note.textContent = `자동으로 채워진 항목을 확인해 주세요 (인식 정확도: ${confPct}%)`;
+    overlay.querySelector('form')?.prepend(note);
+  }
+
   /* ══════════════════════════════════════════
    * CRUD 모달 — 구독 추가 / 수정
    * ══════════════════════════════════════════ */
@@ -974,6 +1092,18 @@
           <span class="modal-title">${existing ? '구독 수정' : '구독 추가'}</span>
           <button class="modal-close" id="modal-close-btn">✕</button>
         </div>
+        ${!existing ? `<div style="background:var(--c-surface2);border:1px dashed var(--c-border);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+          <span style="font-size:1.1rem">📷</span>
+          <div style="flex:1">
+            <div class="text-sm font-bold">구독 화면에서 자동 불러오기</div>
+            <div class="text-xs text-muted">결제 문자, 앱 구독 화면을 캡처해 올리면 자동으로 채워줘요</div>
+          </div>
+          <label class="btn btn-secondary btn-sm" style="cursor:pointer">
+            사진 올리기
+            <input type="file" id="ocr-upload" accept="image/*" style="display:none">
+          </label>
+          <button class="btn btn-secondary btn-sm" id="ocr-paste-btn">텍스트 붙여넣기</button>
+        </div>` : ''}
         <form id="sub-form">
           <div class="form-row">
             <div class="form-group">
@@ -1036,6 +1166,21 @@
     overlay.querySelector('#modal-close-btn').addEventListener('click',  () => overlay.remove());
     overlay.querySelector('#modal-cancel-btn').addEventListener('click', () => overlay.remove());
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+    // OCR 이미지 업로드
+    overlay.querySelector('#ocr-upload')?.addEventListener('change', async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const result = await SubscriptionOCRProvider.extractFromImage(file);
+      applyOCRResult(overlay, result);
+    });
+    // OCR 텍스트 붙여넣기
+    overlay.querySelector('#ocr-paste-btn')?.addEventListener('click', () => {
+      const text = prompt('결제 문자나 구독 정보 텍스트를 붙여넣어 주세요:');
+      if (!text) return;
+      const result = AppOCR.extractFromText(text);
+      applyOCRResult(overlay, result);
+    });
 
     overlay.querySelector('#sub-form').addEventListener('submit', e => {
       e.preventDefault();

@@ -118,9 +118,18 @@
     }
 
     // ── 4. functionalImportance ──
-    // importance null 이면 제외
+    // 자동 계산: 실사용량(일관성 + 강도)으로 중요도 추론
+    // 사용자 입력값(importance)이 있으면 우선 사용, 없으면 자동 산출
     if (sub.importance !== null && sub.importance !== undefined) {
       components.functionalImportance = sub.importance * 20; // 1~5 → 20~100
+    } else if (coverageTier !== 'C' && serviceSummary) {
+      // 실사용량 기반 자동 추론:
+      // - 사용 일관성(usedDays/30)과 강도(avgDailyAdjustedMin)를 조합
+      // - 30일 중 20일 이상 + 일평균 30분 이상이면 높은 중요도로 추론
+      const consistencyScore = serviceSummary.usedDays / serviceSummary.period.days; // 0~1
+      const intensityScore   = Math.min(1, serviceSummary.avgDailyAdjustedMin / CFG.TARGET_DAILY_MIN);
+      const autoImportance   = Math.round((consistencyScore * 0.6 + intensityScore * 0.4) * 100);
+      components.functionalImportance = autoImportance;
     } else {
       components.functionalImportance = null;
     }
@@ -149,11 +158,34 @@
     }
 
     // ── 7. replacementDifficulty ──
-    // replacementDifficulty null 이면 제외
+    // 자동 계산: 같은 카테고리 내 대체 가능한 서비스 수 + 사용량 기반 추론
+    // 사용자 입력값이 있으면 우선 사용, 없으면 자동 산출
     if (sub.replacementDifficulty !== null && sub.replacementDifficulty !== undefined) {
       components.replacementDifficulty = sub.replacementDifficulty * 20;
     } else {
-      components.replacementDifficulty = null;
+      // 자동 추론:
+      // - 같은 카테고리 내 구독 중 capabilityTags 겹침이 높을수록 대체 쉬움 → 난이도 낮음
+      // - AI 도메인(category==='ai')은 서로 대체 가능성이 높아 기본 난이도 낮게 출발
+      // - 사용 일관성이 높을수록(자주 씀) 대체하기 어렵다고 판단
+      const sameCatSubs = subscriptions.filter(
+        s => s.serviceId !== sub.serviceId && s.category === sub.category
+      );
+      // 최대 Jaccard 겹침 (겹침이 클수록 대체 쉬움)
+      const maxJaccard = sameCatSubs.length > 0
+        ? Math.max(...sameCatSubs.map(s => calcJaccard(sub.capabilityTags, s.capabilityTags)))
+        : 0;
+      // 사용 일관성 (높을수록 의존도 높음 → 대체 어려움)
+      const consistency = (coverageTier !== 'C' && serviceSummary)
+        ? serviceSummary.usedDays / serviceSummary.period.days
+        : 0.5; // 미측정 시 중간값
+
+      // 대체 난이도 = 의존도 높음(+) - 대체재 겹침(-)
+      // AI 카테고리는 겹침이 많아 기본 상한을 0.7로 제한
+      const categoryPenalty = sub.category === 'ai' ? 0.2 : 0;
+      const autoScore = Math.max(0, Math.min(1,
+        consistency * 0.7 - maxJaccard * 0.5 - categoryPenalty + 0.3
+      ));
+      components.replacementDifficulty = Math.round(autoScore * 100);
     }
 
     return components;
