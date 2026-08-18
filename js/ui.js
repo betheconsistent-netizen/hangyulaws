@@ -1945,7 +1945,7 @@
   });
 
   /* ══════════════════════════════════════════
-   * VIEW: CALENDAR — 결제 캘린더 (§9.9)
+   * VIEW: CALENDAR — 결제 캘린더
    * ══════════════════════════════════════════ */
   registerView('calendar', function (container) {
     const state = global._appState;
@@ -1953,110 +1953,235 @@
     if (!state) return;
     const TODAY = (C && C.TODAY) || AppDemoData.TODAY;
 
-    // 현재 표시 월 상태 (뷰 내 로컬)
     let viewYear  = parseInt(TODAY.slice(0, 4));
     let viewMonth = parseInt(TODAY.slice(5, 7));
+    const todayDay = parseInt(TODAY.slice(8, 10));
+
+    const CAT_COLORS = {
+      ai:           '#6c8fff', dev: '#2dd4bf', design: '#a78bfa',
+      productivity: '#34d399', media: '#f87171', music: '#f59e0b',
+      game: '#ec4899', shopping: '#10b981', delivery: '#f97316',
+      cloud: '#60a5fa', education: '#8b5cf6', fitness: '#14b8a6',
+      reading: '#fb923c', security: '#6366f1', finance: '#22c55e',
+      other: '#fbbf24',
+    };
+    const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+    const MONTH_NAMES = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 
     function renderCalendar() {
       container.innerHTML = '';
 
-      // 월 네비게이션
-      const nav = document.createElement('div');
-      nav.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;';
-      nav.innerHTML = `
-        <button class="btn btn-ghost" id="cal-prev">← 이전 달</button>
-        <span style="font-size:1rem;font-weight:700">${viewYear}년 ${viewMonth}월</span>
-        <button class="btn btn-ghost" id="cal-next">다음 달 →</button>`;
-      container.appendChild(nav);
+      // ── 구독 결제일 맵 생성 ──
+      const billingMap = {}; // day → [sub, ...]
+      state.subscriptions.forEach(sub => {
+        if (!sub.nextBillingDate) return;
+        const subDay = parseInt(sub.nextBillingDate.slice(8, 10));
+        const daysInMonth = new Date(Date.UTC(viewYear, viewMonth, 0)).getUTCDate();
+        const day = Math.min(subDay, daysInMonth);
+        if (!billingMap[day]) billingMap[day] = [];
+        billingMap[day].push(sub);
+      });
 
-      nav.querySelector('#cal-prev').addEventListener('click', () => {
+      // ── 헤더 ──
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;';
+      header.innerHTML = `
+        <button class="btn btn-secondary btn-sm" id="cal-prev">← 이전</button>
+        <span style="font-size:1.1rem;font-weight:800;letter-spacing:-0.02em">${viewYear}년 ${MONTH_NAMES[viewMonth-1]}</span>
+        <button class="btn btn-secondary btn-sm" id="cal-next">다음 →</button>`;
+      container.appendChild(header);
+      header.querySelector('#cal-prev').addEventListener('click', () => {
         viewMonth--; if (viewMonth < 1) { viewMonth = 12; viewYear--; }
         renderCalendar();
       });
-      nav.querySelector('#cal-next').addEventListener('click', () => {
+      header.querySelector('#cal-next').addEventListener('click', () => {
         viewMonth++; if (viewMonth > 12) { viewMonth = 1; viewYear++; }
         renderCalendar();
       });
 
-      // 이번 달 결제일 수집
-      const billingDays = [];
-      const CATEGORY_COLORS = {
-        ai:           { fill: '#1e2a3a', stroke: '#6c8fff' },
-        design:       { fill: '#2a1e3a', stroke: '#a78bfa' },
-        productivity: { fill: '#1e3a2a', stroke: '#34d399' },
-        media:        { fill: '#3a1e1e', stroke: '#f87171' },
-        dev:          { fill: '#1e3030', stroke: '#2dd4bf' },
-        other:        { fill: '#2a2a1e', stroke: '#fbbf24' },
-      };
+      // ── 캘린더 카드 ──
+      const calCard = document.createElement('div');
+      calCard.className = 'card';
+      calCard.style.padding = '16px';
 
-      state.subscriptions.forEach(sub => {
-        if (!sub.nextBillingDate) return;
-        const billingDate = new Date(sub.nextBillingDate + 'T00:00:00Z');
-        // 월별 반복 결제일 계산
-        const subDay = billingDate.getUTCDate();
-        // 이번 달에 해당하는 날짜
-        const daysInMonth = new Date(Date.UTC(viewYear, viewMonth, 0)).getUTCDate();
-        const day = Math.min(subDay, daysInMonth);
-        const cat = sub.category || 'other';
-        const coloring = CATEGORY_COLORS[cat] || CATEGORY_COLORS.other;
-        billingDays.push({
-          day,
-          serviceId:   sub.serviceId,
-          serviceName: sub.serviceName,
-          amount:      AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle),
-          color:       coloring.fill,
-          strokeColor: coloring.stroke,
-          isFree:      sub.price === 0,
-        });
+      // 요일 헤더
+      const dayHeader = document.createElement('div');
+      dayHeader.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:6px;';
+      DAY_LABELS.forEach((d, i) => {
+        const cell = document.createElement('div');
+        cell.style.cssText = `text-align:center;font-size:0.72rem;font-weight:700;padding:6px 0;color:${i===0?'var(--c-red)':i===6?'var(--c-accent)':'var(--c-muted)'};`;
+        cell.textContent = d;
+        dayHeader.appendChild(cell);
       });
+      calCard.appendChild(dayHeader);
 
-      // 캘린더 SVG
-      const calWrap = document.createElement('div');
-      calWrap.className = 'card';
-      calWrap.style.padding = '16px';
-      const calSvg = AppCharts.billingCalendar(viewYear, viewMonth, billingDays, { w: Math.min(container.offsetWidth - 40, 560) });
-      calWrap.appendChild(calSvg);
-      container.appendChild(calWrap);
+      // 날짜 그리드
+      const grid = document.createElement('div');
+      grid.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:3px;';
 
-      // 이번 달 결제 목록
-      if (billingDays.length) {
+      const firstDay = new Date(Date.UTC(viewYear, viewMonth - 1, 1)).getUTCDay();
+      const daysInMonth = new Date(Date.UTC(viewYear, viewMonth, 0)).getUTCDate();
+      const isCurrentMonth = (viewYear === parseInt(TODAY.slice(0,4)) && viewMonth === parseInt(TODAY.slice(5,7)));
+
+      // 빈 칸
+      for (let i = 0; i < firstDay; i++) {
+        const blank = document.createElement('div');
+        grid.appendChild(blank);
+      }
+
+      // 날짜 셀
+      for (let day = 1; day <= daysInMonth; day++) {
+        const subs = billingMap[day] || [];
+        const isToday = isCurrentMonth && day === todayDay;
+        const hasBilling = subs.length > 0;
+
+        const cell = document.createElement('div');
+        cell.style.cssText = `
+          min-height:60px;border-radius:8px;padding:4px;
+          border:1px solid ${hasBilling ? 'rgba(91,127,255,0.25)' : 'var(--c-border)'};
+          background:${isToday ? 'rgba(91,127,255,0.08)' : hasBilling ? 'rgba(91,127,255,0.04)' : 'var(--c-surface2)'};
+          cursor:${hasBilling ? 'pointer' : 'default'};
+          transition:all 0.12s;
+          position:relative;`;
+
+        const dayNum = document.createElement('div');
+        dayNum.style.cssText = `
+          font-size:0.78rem;font-weight:${isToday||hasBilling?'800':'400'};
+          color:${isToday?'var(--c-accent)':hasBilling?'var(--c-text)':'var(--c-text2)'};
+          text-align:center;margin-bottom:3px;
+          ${isToday?'background:var(--c-accent);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 3px;':''}`;
+        dayNum.textContent = day;
+        cell.appendChild(dayNum);
+
+        // 결제 서비스 아이콘들
+        if (hasBilling) {
+          const iconsWrap = document.createElement('div');
+          iconsWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:2px;justify-content:center;';
+          subs.slice(0, 3).forEach(sub => {
+            const dot = document.createElement('div');
+            const color = CAT_COLORS[sub.category] || CAT_COLORS.other;
+            dot.style.cssText = `width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0;`;
+            dot.title = sub.serviceName;
+            iconsWrap.appendChild(dot);
+          });
+          if (subs.length > 3) {
+            const more = document.createElement('span');
+            more.style.cssText = 'font-size:0.55rem;color:var(--c-muted);line-height:6px;';
+            more.textContent = '+' + (subs.length - 3);
+            iconsWrap.appendChild(more);
+          }
+          cell.appendChild(iconsWrap);
+
+          // 결제 금액 합계 표시
+          const total = subs.reduce((s, sub) => s + AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle), 0);
+          if (total > 0) {
+            const amtDiv = document.createElement('div');
+            amtDiv.style.cssText = 'font-size:0.58rem;color:var(--c-accent);text-align:center;margin-top:2px;font-weight:600;';
+            amtDiv.textContent = total >= 10000 ? '₩' + Math.round(total/1000) + 'k' : '₩' + total.toLocaleString();
+            cell.appendChild(amtDiv);
+          }
+
+          // 클릭 시 해당 날짜 상세 팝업
+          cell.addEventListener('click', () => showDayDetail(day, subs, container));
+          cell.addEventListener('mouseenter', () => { cell.style.borderColor = 'var(--c-accent)'; });
+          cell.addEventListener('mouseleave', () => { cell.style.borderColor = hasBilling ? 'rgba(91,127,255,0.25)' : 'var(--c-border)'; });
+        }
+
+        grid.appendChild(cell);
+      }
+      calCard.appendChild(grid);
+      container.appendChild(calCard);
+
+      // ── 결제 목록 ──
+      const allBillings = Object.entries(billingMap)
+        .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+        .flatMap(([day, subs]) => subs.map(sub => ({ day: parseInt(day), sub })));
+
+      if (allBillings.length > 0) {
         const listCard = document.createElement('div');
         listCard.className = 'card';
         listCard.innerHTML = '<div class="card-header"><span class="card-title">📋 이번 달 결제 목록</span></div>';
-        const sorted = billingDays.slice().sort((a, b) => a.day - b.day);
-        let totalMonthly = 0;
-        sorted.forEach(b => {
-          if (!b.isFree) totalMonthly += b.amount;
+        const list = document.createElement('div');
+        list.className = 'billing-list';
+        let total = 0;
+        allBillings.forEach(({ day, sub }) => {
+          const monthly = AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle);
+          if (!sub.price || sub.price > 0) total += monthly;
+          const color = CAT_COLORS[sub.category] || CAT_COLORS.other;
           const row = document.createElement('div');
           row.className = 'billing-item';
           row.style.cursor = 'pointer';
           row.innerHTML = `
-            <span style="font-size:1rem">${SERVICE_ICONS[b.serviceId] || '💳'}</span>
-            <span style="flex:1;font-weight:500">${b.serviceName}</span>
-            <span class="text-muted text-sm">${viewMonth}월 ${b.day}일</span>
-            <span class="font-bold">${b.isFree ? '<span class="badge badge-green" style="font-size:0.72rem">무료</span>' : krw(b.amount)}</span>`;
-          row.addEventListener('click', () => navigate('detail', { serviceId: b.serviceId }));
-          listCard.appendChild(row);
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span>
+            <span style="font-size:1rem;flex-shrink:0">${svcIcon(sub.serviceId)}</span>
+            <span style="flex:1;font-weight:500;font-size:0.88rem">${sub.serviceName}</span>
+            <span class="text-muted text-sm">${viewMonth}월 ${day}일</span>
+            <span class="font-bold">${sub.price === 0 ? '<span class="badge badge-green" style="font-size:0.7rem">무료</span>' : krw(monthly)}</span>`;
+          row.addEventListener('click', () => navigate('detail', { serviceId: sub.serviceId }));
+          list.appendChild(row);
         });
-        // 합계
-        const total = document.createElement('div');
-        total.style.cssText = 'display:flex;justify-content:space-between;padding:10px 14px;border-top:1px solid var(--c-border);margin-top:4px;font-weight:700;';
-        total.innerHTML = `<span>이번 달 합계</span><span class="text-green">${krw(totalMonthly)}</span>`;
-        listCard.appendChild(total);
+        listCard.appendChild(list);
+        if (total > 0) {
+          const totalRow = document.createElement('div');
+          totalRow.style.cssText = 'display:flex;justify-content:space-between;padding:10px 14px;border-top:1px solid var(--c-border);font-weight:700;margin-top:4px;';
+          totalRow.innerHTML = `<span>이번 달 합계</span><span style="color:var(--c-green)">${krw(total)}</span>`;
+          listCard.appendChild(totalRow);
+        }
         container.appendChild(listCard);
+      } else {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.innerHTML = '<div class="empty-icon">📅</div><p>이번 달 등록된 결제 일정이 없습니다.<br>구독을 추가하면 자동으로 표시됩니다.</p>';
+        container.appendChild(empty);
       }
 
-      // 범례
-      const legendCard = document.createElement('div');
-      legendCard.className = 'card card-sm';
-      legendCard.innerHTML = `<div class="text-xs text-muted" style="margin-bottom:8px;font-weight:600">카테고리 색상</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px">
-          ${[['ai','AI','#6c8fff'],['design','디자인','#a78bfa'],['productivity','생산성','#34d399'],['media','미디어','#f87171'],['dev','개발','#2dd4bf'],['other','기타','#fbbf24']]
-            .map(([k,v,stroke]) => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem">
-                <span style="width:10px;height:10px;border-radius:2px;border:1.5px solid ${stroke};display:inline-block"></span>${v}
-              </span>`).join('')}
+      // ── 범례 ──
+      const legend = document.createElement('div');
+      legend.className = 'card card-sm';
+      legend.innerHTML = `<div class="text-xs text-muted" style="margin-bottom:8px;font-weight:600">카테고리</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px">
+          ${Object.entries(AppConfig.CATEGORIES).map(([k, v]) =>
+            `<span style="display:inline-flex;align-items:center;gap:5px;font-size:0.74rem">
+              <span style="width:8px;height:8px;border-radius:50%;background:${CAT_COLORS[k]||'#8892a4'};flex-shrink:0"></span>${v.label}
+            </span>`).join('')}
         </div>`;
-      container.appendChild(legendCard);
+      container.appendChild(legend);
+    }
+
+    // ── 날짜 클릭 시 상세 ──
+    function showDayDetail(day, subs, container) {
+      // 기존 팝업 제거
+      document.querySelector('.cal-day-popup')?.remove();
+      const popup = document.createElement('div');
+      popup.className = 'cal-day-popup';
+      popup.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;';
+      popup.innerHTML = `
+        <div style="background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-lg);padding:20px;min-width:280px;max-width:400px;width:100%;box-shadow:var(--shadow-lg)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <strong>${viewMonth}월 ${day}일 결제</strong>
+            <button style="background:none;border:none;cursor:pointer;color:var(--c-muted);font-size:1.1rem" id="popup-close">✕</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${subs.map(sub => `
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--c-surface2);border-radius:var(--r-sm);cursor:pointer" data-sid="${sub.serviceId}">
+                <span style="font-size:1.2rem">${svcIcon(sub.serviceId)}</span>
+                <div style="flex:1">
+                  <div style="font-size:0.88rem;font-weight:600">${sub.serviceName}</div>
+                  <div style="font-size:0.72rem;color:var(--c-muted)">${sub.planName}</div>
+                </div>
+                <span style="font-weight:700;font-size:0.88rem">${sub.price===0?'<span class="badge badge-green">무료</span>':krw(AppCatalog.toMonthlyAmount(sub.price,sub.billingCycle))}</span>
+              </div>`).join('')}
+          </div>
+        </div>`;
+      document.body.appendChild(popup);
+      popup.querySelector('#popup-close').addEventListener('click', () => popup.remove());
+      popup.addEventListener('click', e => { if (e.target === popup) popup.remove(); });
+      popup.querySelectorAll('[data-sid]').forEach(el => {
+        el.addEventListener('click', () => {
+          popup.remove();
+          navigate('detail', { serviceId: el.dataset.sid });
+        });
+      });
     }
 
     renderCalendar();
