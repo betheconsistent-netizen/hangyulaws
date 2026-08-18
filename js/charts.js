@@ -264,3 +264,115 @@
   };
 
 })(window);
+
+  /* ─────────────────────────────────────
+   * 6. 월별 결제 캘린더
+   *    year, month(1-12), billingDays: [{ day, serviceId, serviceName, amount, color? }]
+   * ───────────────────────────────────── */
+  function billingCalendar(year, month, billingDays, opts) {
+    const { w = 320, cellSize = 38 } = opts || {};
+    const DAY_LABELS = ['일','월','화','수','목','금','토'];
+    const firstDay = new Date(Date.UTC(year, month - 1, 1)).getUTCDay(); // 0=일
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const rows = Math.ceil((firstDay + daysInMonth) / 7);
+    const h = cellSize * rows + 42;
+    const colW = Math.floor(w / 7);
+
+    const svg = svgEl('svg', {
+      width: w, height: h,
+      viewBox: `0 0 ${w} ${h}`,
+      style: 'display:block;width:100%;',
+    });
+
+    // 요일 헤더
+    DAY_LABELS.forEach((d, i) => {
+      const txt = svgEl('text', {
+        x: colW * i + colW / 2, y: 18,
+        'text-anchor': 'middle',
+        'font-size': '11',
+        fill: i === 0 ? '#f87171' : i === 6 ? '#6c8fff' : '#8892a4',
+        'font-weight': '600',
+      });
+      txt.textContent = d;
+      svg.appendChild(txt);
+    });
+
+    // 날짜 맵
+    const billingMap = {};
+    (billingDays || []).forEach(b => {
+      if (!billingMap[b.day]) billingMap[b.day] = [];
+      billingMap[b.day].push(b);
+    });
+
+    const today = new Date();
+    const isCurrentMonth = today.getFullYear() === year && today.getMonth() + 1 === month;
+    const todayDay = isCurrentMonth ? today.getDate() : -1;
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const pos = firstDay + day - 1;
+      const col = pos % 7;
+      const row = Math.floor(pos / 7);
+      const x = colW * col;
+      const y = 26 + row * cellSize;
+      const isToday = day === todayDay;
+      const billings = billingMap[day] || [];
+      const hasBilling = billings.length > 0;
+
+      // 셀 배경
+      if (isToday) {
+        svg.appendChild(svgEl('rect', {
+          x: x + 2, y: y + 2,
+          width: colW - 4, height: cellSize - 4,
+          rx: '6', fill: '#1a2545',
+        }));
+      }
+      if (hasBilling) {
+        svg.appendChild(svgEl('rect', {
+          x: x + 2, y: y + 2,
+          width: colW - 4, height: cellSize - 4,
+          rx: '6',
+          fill: billings[0].color || '#1e3a2a',
+          stroke: billings[0].strokeColor || '#34d399',
+          'stroke-width': '1.5',
+        }));
+      }
+
+      // 날짜 숫자
+      const numColor = hasBilling ? '#34d399' : isToday ? '#6c8fff'
+        : col === 0 ? '#f87171' : col === 6 ? '#6c8fff' : '#e2e8f0';
+      const txt = svgEl('text', {
+        x: x + colW / 2, y: y + 17,
+        'text-anchor': 'middle',
+        'font-size': '12',
+        'font-weight': hasBilling || isToday ? '700' : '400',
+        fill: numColor,
+      });
+      txt.textContent = day;
+      svg.appendChild(txt);
+
+      // 결제 서비스 이모지 (최대 2개)
+      if (hasBilling) {
+        const icons = BILLING_ICONS;
+        billings.slice(0, 2).forEach((b, bi) => {
+          const ic = svgEl('text', {
+            x: x + colW / 2 + (billings.length > 1 ? (bi === 0 ? -7 : 7) : 0),
+            y: y + 32,
+            'text-anchor': 'middle',
+            'font-size': '10',
+          });
+          ic.textContent = icons[b.serviceId] || '💳';
+          svg.appendChild(ic);
+        });
+      }
+    }
+
+    return svg;
+  }
+
+  const BILLING_ICONS = {
+    chatgpt:'🤖', claude:'🧠', perplexity:'🔍', cursor:'⌨️',
+    figma:'🎨', notion:'📝', canva:'🖼️', netflix:'🎬', adobe:'📐',
+  };
+
+  // Public API에 추가
+  global.AppCharts.billingCalendar = billingCalendar;

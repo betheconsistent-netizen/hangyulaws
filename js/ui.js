@@ -52,6 +52,7 @@
     document.getElementById('header-title').textContent = {
       dashboard: '대시보드', subscriptions: '구독 목록', detail: '서비스 상세',
       insights: '인사이트 & 알림', portfolio: '구독 최적화 분석', settings: '설정',
+      calendar: '결제 캘린더',
     }[view] || view;
 
     if (VIEWS[view]) VIEWS[view](container, resolvedParams);
@@ -130,7 +131,7 @@
     if (state.isDemo) {
       const banner = document.createElement('div');
       banner.id = 'demo-banner';
-      banner.innerHTML = '<span class="demo-icon">🧪</span><span><strong>[데모 데이터]</strong> 현재 화면은 시뮬레이션 데이터를 기반으로 합니다. 실제 사용량·가격과 다릅니다. 출처: <span class="badge badge-gray text-xs">데모</span></span>';
+      banner.innerHTML = '<span class="demo-icon">🧪</span><span><strong>[데모 데이터]</strong> 현재 화면은 시뮬레이션 데이터를 기반으로 합니다. 실제 사용량·가격과 다릅니다.</span>';
       container.appendChild(banner);
     }
 
@@ -138,113 +139,149 @@
     const totalMonthly = subs.reduce((s, sub) =>
       s + AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle), 0);
     const covSummary = AppCoverage.getCoverageSummary(coverageMap);
+    const trackedCount = covSummary.measured + covSummary.partial;
 
     const summaryGrid = document.createElement('div');
     summaryGrid.className = 'summary-grid';
     summaryGrid.innerHTML = `
       <div class="summary-card">
-        <div class="summary-label">월 구독비 합계</div>
+        <div class="summary-label">월 구독비</div>
         <div class="summary-value">${krw(totalMonthly)}</div>
         <div class="summary-sub">연 환산 ${krw(totalMonthly * 12)}</div>
       </div>
       <div class="summary-card">
         <div class="summary-label">구독 수</div>
-        <div class="summary-value">${subs.length}개</div>
-        <div class="summary-sub">활성 구독</div>
+        <div class="summary-value">${subs.length}<span style="font-size:0.9rem;font-weight:400;color:var(--c-muted)">개</span></div>
+        <div class="summary-sub">활성 구독 서비스</div>
       </div>
       <div class="summary-card">
-        <div class="summary-label">커버리지</div>
-        <div class="summary-value">${covSummary.measured + covSummary.partial}개</div>
-        <div class="summary-sub">${subs.length}개 중 측정 중</div>
+        <div class="summary-label">추적 중</div>
+        <div class="summary-value">${trackedCount}<span style="font-size:0.9rem;font-weight:400;color:var(--c-muted)"> / ${subs.length}</span></div>
+        <div class="summary-sub">사용량 측정 중인 서비스</div>
       </div>
       <div class="summary-card">
-        <div class="summary-label">예상 월 절감액</div>
-        <div class="summary-value text-green">${krw(analysis.summary.monthlySavingsKRW)}</div>
-        <div class="summary-sub">해지 검토 ${analysis.summary.cancelCount}건</div>
+        <div class="summary-label">예상 절감액</div>
+        <div class="summary-value" style="color:var(--c-green)">${krw(analysis.summary.monthlySavingsKRW)}</div>
+        <div class="summary-sub">해지 검토 ${analysis.summary.cancelCount}건 · 연 ${krw(analysis.summary.monthlySavingsKRW * 12)}</div>
       </div>`;
     container.appendChild(summaryGrid);
 
-    // 다가오는 결제
-    const billings = AppPredict.getUpcomingBillings(subs, TODAY, 3);
-    const billingCard = document.createElement('div');
-    billingCard.className = 'card';
-    billingCard.innerHTML = `<div class="card-header"><span class="card-title">🗓️ 다가오는 결제</span></div>`;
-    const bList = document.createElement('div');
-    bList.className = 'billing-list';
-    billings.forEach(b => {
-      const item = document.createElement('div');
-      item.className = 'billing-item';
-      item.innerHTML = `
-        <span>${svcIcon(b.serviceId)} ${b.serviceName}</span>
-        <span class="text-muted text-sm">${b.nextBillingDate || ''}</span>
-        <span class="text-sm">${krw(b.monthlyKRW)}/월</span>
-        <span class="billing-dday ${b.isUrgent ? 'urgent' : ''}">D${b.daysUntilBilling >= 0 ? '+' + b.daysUntilBilling : b.daysUntilBilling}</span>`;
-      bList.appendChild(item);
-    });
-    billingCard.appendChild(bList);
-    container.appendChild(billingCard);
+    // 2열 레이아웃: 좌(구독 현황) + 우(결제 + 인사이트)
+    const twoCol = document.createElement('div');
+    twoCol.style.cssText = 'display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start;';
 
-    // 구독 카드 목록 (간략)
+    // ── 좌: 구독 현황 ──
+    const leftCol = document.createElement('div');
     const listCard = document.createElement('div');
     listCard.className = 'card';
+    listCard.style.marginBottom = '0';
     listCard.innerHTML = `<div class="card-header">
-      <span class="card-title">📋 구독 현황</span>
-      <button class="btn btn-sm btn-secondary" id="btn-goto-subs">전체 보기</button>
+      <span class="card-title">구독 현황</span>
+      <button class="btn btn-sm btn-ghost" id="btn-goto-subs">전체 보기 →</button>
     </div>`;
     const subList = document.createElement('div');
     subList.className = 'sub-list';
 
-    subs.slice(0, 5).forEach(sub => {
+    subs.slice(0, 6).forEach(sub => {
       const tier    = coverageMap[sub.serviceId] ? coverageMap[sub.serviceId].tier : 'C';
       const summary = AppUsage.getServiceSummary(aggregated, sub.serviceId, TODAY, 30);
       const recItem = analysis.items.find(r => r.serviceId === sub.serviceId);
       const recLbl  = recItem ? recItem.recommendation.label : '-';
-      const sc      = C.scorecards[sub.serviceId];
-      const score   = sc && sc.scoreResult ? sc.scoreResult.score : null;
+      const recColor = recLbl === '유지' ? 'badge-green' : recLbl === '해지 검토' ? 'badge-red' : recLbl === '다운그레이드 검토' ? 'badge-yellow' : 'badge-gray';
+
+      const sparkVals = AppUsage.dateRange(
+        new Date(new Date(TODAY+'T00:00:00Z').getTime() - 13*86400000).toISOString().slice(0,10), TODAY
+      ).map(d => Math.round((summary.dailyAdjustedSec[d] || 0) / 60));
 
       const card = document.createElement('div');
       card.className = 'sub-card';
+      card.style.gridTemplateColumns = '44px 1fr 70px auto auto';
       card.dataset.serviceId = sub.serviceId;
+
+      const sparkWrap = document.createElement('div');
+      sparkWrap.style.cssText = 'width:70px;height:28px;display:flex;align-items:center;';
+      if (tier !== 'C') {
+        sparkWrap.appendChild(AppCharts.sparkline(sparkVals, { w: 70, h: 28 }));
+      } else {
+        sparkWrap.innerHTML = '<span style="font-size:0.62rem;color:var(--c-muted)">추적 안 됨</span>';
+      }
+
       card.innerHTML = `
         <div class="sub-icon">${svcIcon(sub.serviceId)}</div>
         <div class="sub-info">
           <div class="sub-name">${sub.serviceName}</div>
           <div class="sub-plan">${sub.planName} · ${coverageBadge(tier)}</div>
-        </div>
-        <div class="sub-usage">
-          <div class="usage-val">${tier === 'C' ? '측정 안 됨' : fmtMin(summary.avgDailyAdjustedMin)}</div>
-          <div class="usage-lbl">일평균 (조정)</div>
-        </div>
-        <div class="sub-price">
-          <div class="price-val">${krw(AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle))}</div>
-          <div class="price-lbl">/월</div>
-        </div>
-        <div class="sub-actions">
-          <span class="badge ${recLbl === '유지' ? 'badge-green' : recLbl === '해지 검토' ? 'badge-red' : recLbl === '다운그레이드 검토' ? 'badge-yellow' : 'badge-gray'}">${recLbl}</span>
         </div>`;
-      card.addEventListener('click', () => navigate('detail', { serviceId: sub.serviceId }));
+      card.appendChild(sparkWrap);
+      const priceDiv = document.createElement('div');
+      priceDiv.className = 'sub-price';
+      priceDiv.innerHTML = `<div class="price-val">${krw(AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle))}</div><div class="price-lbl">/월</div>`;
+      card.appendChild(priceDiv);
+      const actDiv = document.createElement('div');
+      actDiv.innerHTML = `<span class="badge ${recColor}">${recLbl}</span>`;
+      card.appendChild(actDiv);
+      card.addEventListener('click', e => { if (!e.target.closest('button')) navigate('detail', { serviceId: sub.serviceId }); });
       subList.appendChild(card);
     });
     listCard.appendChild(subList);
-    container.appendChild(listCard);
+    leftCol.appendChild(listCard);
 
-    // 인사이트 요약 배너
+    // ── 우: 결제 + 인사이트 ──
+    const rightCol = document.createElement('div');
+
+    const billings = AppPredict.getUpcomingBillings(subs, TODAY, 4);
+    const billingCard = document.createElement('div');
+    billingCard.className = 'card';
+    billingCard.innerHTML = `<div class="card-header"><span class="card-title">🗓️ 다가오는 결제</span>
+      <button class="btn btn-ghost btn-xs" onclick="AppUI.navigate('calendar')">캘린더 →</button></div>`;
+    const bList = document.createElement('div');
+    bList.className = 'billing-list';
+    billings.forEach(b => {
+      const item = document.createElement('div');
+      item.className = 'billing-item';
+      const dText = b.daysUntilBilling === 0 ? '오늘' : `D+${b.daysUntilBilling}`;
+      item.innerHTML = `
+        <span>${svcIcon(b.serviceId)}</span>
+        <span style="flex:1;font-size:0.84rem;font-weight:500">${b.serviceName}</span>
+        <span class="text-sm" style="color:var(--c-muted)">${krw(b.monthlyKRW)}</span>
+        <span class="billing-dday ${b.isUrgent ? 'urgent' : ''}">${dText}</span>`;
+      bList.appendChild(item);
+    });
+    billingCard.appendChild(bList);
+    rightCol.appendChild(billingCard);
+
     const deliveredCount = classified.delivered.length;
-    if (deliveredCount > 0) {
-      const insightBanner = document.createElement('div');
-      insightBanner.className = 'card card-sm';
-      insightBanner.style.borderColor = 'var(--c-accent)';
-      insightBanner.innerHTML = `<div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:1.2rem">🔔</span>
-        <span class="text-sm">신규 인사이트 <strong>${deliveredCount}건</strong></span>
-        <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="AppUI.navigate('insights')">보기 →</button>
-      </div>`;
-      container.appendChild(insightBanner);
+    const suppressedCount = classified.suppressed.length;
+    const insightCard = document.createElement('div');
+    insightCard.className = 'card';
+    insightCard.style.marginBottom = '0';
+    insightCard.innerHTML = `<div class="card-header"><span class="card-title">🔔 알림 센터</span></div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--c-surface2);border-radius:var(--r-sm)">
+          <span class="text-sm">발송된 알림</span>
+          <span class="font-bold" style="color:var(--c-accent)">${deliveredCount}건</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--c-surface2);border-radius:var(--r-sm)">
+          <span class="text-sm text-muted">억제된 알림</span>
+          <span class="text-muted">${suppressedCount}건</span>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:10px;justify-content:center" onclick="AppUI.navigate('insights')">전체 알림 보기</button>`;
+    rightCol.appendChild(insightCard);
+
+    twoCol.appendChild(leftCol);
+    twoCol.appendChild(rightCol);
+    container.appendChild(twoCol);
+
+    // 모바일 1열 대응
+    const mq = window.matchMedia('(max-width:700px)');
+    const applyLayout = () => { twoCol.style.gridTemplateColumns = mq.matches ? '1fr' : '1fr 320px'; };
+    applyLayout();
+    mq.addEventListener('change', applyLayout);
     }
 
     container.querySelector('#btn-goto-subs')?.addEventListener('click', () => navigate('subscriptions'));
   });
-
   /* ══════════════════════════════════════════
    * VIEW: SUBSCRIPTIONS (목록 + CRUD)
    * ══════════════════════════════════════════ */
@@ -1243,6 +1280,133 @@
     refreshApp();
     alert('😴 ' + AppConfig.SNOOZE_DAYS + '일간 해지 알림이 중단됩니다.');
   }
+
+  /* ══════════════════════════════════════════
+   * VIEW: CALENDAR — 결제 캘린더 (§9.9)
+   * ══════════════════════════════════════════ */
+  registerView('calendar', function (container) {
+    const state = global._appState;
+    const C     = global._computed;
+    if (!state) return;
+    const TODAY = (C && C.TODAY) || AppDemoData.TODAY;
+
+    // 현재 표시 월 상태 (뷰 내 로컬)
+    let viewYear  = parseInt(TODAY.slice(0, 4));
+    let viewMonth = parseInt(TODAY.slice(5, 7));
+
+    function renderCalendar() {
+      container.innerHTML = '';
+
+      // 월 네비게이션
+      const nav = document.createElement('div');
+      nav.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;';
+      nav.innerHTML = `
+        <button class="btn btn-ghost" id="cal-prev">← 이전 달</button>
+        <span style="font-size:1rem;font-weight:700">${viewYear}년 ${viewMonth}월</span>
+        <button class="btn btn-ghost" id="cal-next">다음 달 →</button>`;
+      container.appendChild(nav);
+
+      nav.querySelector('#cal-prev').addEventListener('click', () => {
+        viewMonth--; if (viewMonth < 1) { viewMonth = 12; viewYear--; }
+        renderCalendar();
+      });
+      nav.querySelector('#cal-next').addEventListener('click', () => {
+        viewMonth++; if (viewMonth > 12) { viewMonth = 1; viewYear++; }
+        renderCalendar();
+      });
+
+      // 이번 달 결제일 수집
+      const billingDays = [];
+      const CATEGORY_COLORS = {
+        ai:           { fill: '#1e2a3a', stroke: '#6c8fff' },
+        design:       { fill: '#2a1e3a', stroke: '#a78bfa' },
+        productivity: { fill: '#1e3a2a', stroke: '#34d399' },
+        media:        { fill: '#3a1e1e', stroke: '#f87171' },
+        dev:          { fill: '#1e3030', stroke: '#2dd4bf' },
+        other:        { fill: '#2a2a1e', stroke: '#fbbf24' },
+      };
+
+      state.subscriptions.forEach(sub => {
+        if (!sub.nextBillingDate) return;
+        const billingDate = new Date(sub.nextBillingDate + 'T00:00:00Z');
+        // 월별 반복 결제일 계산
+        const subDay = billingDate.getUTCDate();
+        // 이번 달에 해당하는 날짜
+        const daysInMonth = new Date(Date.UTC(viewYear, viewMonth, 0)).getUTCDate();
+        const day = Math.min(subDay, daysInMonth);
+        const cat = sub.category || 'other';
+        const coloring = CATEGORY_COLORS[cat] || CATEGORY_COLORS.other;
+        billingDays.push({
+          day,
+          serviceId:   sub.serviceId,
+          serviceName: sub.serviceName,
+          amount:      AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle),
+          color:       coloring.fill,
+          strokeColor: coloring.stroke,
+        });
+      });
+
+      // 캘린더 SVG
+      const calWrap = document.createElement('div');
+      calWrap.className = 'card';
+      calWrap.style.padding = '16px';
+      const calSvg = AppCharts.billingCalendar(viewYear, viewMonth, billingDays, { w: Math.min(container.offsetWidth - 40, 560) });
+      calWrap.appendChild(calSvg);
+      container.appendChild(calWrap);
+
+      // 이번 달 결제 목록
+      if (billingDays.length) {
+        const listCard = document.createElement('div');
+        listCard.className = 'card';
+        listCard.innerHTML = '<div class="card-header"><span class="card-title">📋 이번 달 결제 목록</span></div>';
+        const sorted = billingDays.slice().sort((a, b) => a.day - b.day);
+        let totalMonthly = 0;
+        sorted.forEach(b => {
+          totalMonthly += b.amount;
+          const row = document.createElement('div');
+          row.className = 'billing-item';
+          row.style.cursor = 'pointer';
+          row.innerHTML = `
+            <span style="font-size:1rem">${SERVICE_ICONS[b.serviceId] || '💳'}</span>
+            <span style="flex:1;font-weight:500">${b.serviceName}</span>
+            <span class="text-muted text-sm">${viewMonth}월 ${b.day}일</span>
+            <span class="font-bold">${krw(b.amount)}</span>`;
+          row.addEventListener('click', () => navigate('detail', { serviceId: b.serviceId }));
+          listCard.appendChild(row);
+        });
+        // 합계
+        const total = document.createElement('div');
+        total.style.cssText = 'display:flex;justify-content:space-between;padding:10px 14px;border-top:1px solid var(--c-border);margin-top:4px;font-weight:700;';
+        total.innerHTML = `<span>이번 달 합계</span><span class="text-green">${krw(totalMonthly)}</span>`;
+        listCard.appendChild(total);
+        container.appendChild(listCard);
+      }
+
+      // 범례
+      const legendCard = document.createElement('div');
+      legendCard.className = 'card card-sm';
+      legendCard.innerHTML = `<div class="text-xs text-muted" style="margin-bottom:8px;font-weight:600">카테고리 색상</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${[['ai','AI','#6c8fff'],['design','디자인','#a78bfa'],['productivity','생산성','#34d399'],['media','미디어','#f87171'],['dev','개발','#2dd4bf'],['other','기타','#fbbf24']]
+            .map(([k,v,stroke]) => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem">
+                <span style="width:10px;height:10px;border-radius:2px;border:1.5px solid ${stroke};display:inline-block"></span>${v}
+              </span>`).join('')}
+        </div>`;
+
+      // CATEGORY_COLORS를 클로저에서 참조할 수 없으므로 인라인으로 재정의
+      const CATEGORY_COLORS = {
+        ai:           { fill: '#1e2a3a', stroke: '#6c8fff' },
+        design:       { fill: '#2a1e3a', stroke: '#a78bfa' },
+        productivity: { fill: '#1e3a2a', stroke: '#34d399' },
+        media:        { fill: '#3a1e1e', stroke: '#f87171' },
+        dev:          { fill: '#1e3030', stroke: '#2dd4bf' },
+        other:        { fill: '#2a2a1e', stroke: '#fbbf24' },
+      };
+      container.appendChild(legendCard);
+    }
+
+    renderCalendar();
+  });
 
   /* ══════════════════════════════════════════
    * 앱 초기화 & refreshApp
