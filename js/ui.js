@@ -127,7 +127,34 @@
     const { TODAY, aggregated, coverageMap, analysis, classified } = C;
     const subs  = state.subscriptions;
 
-    // 데모 배너
+    // 구독이 없으면 온보딩 화면 표시
+    if (!subs.length) {
+      container.innerHTML = `
+        <div style="max-width:480px;margin:80px auto;text-align:center">
+          <div style="font-size:3rem;margin-bottom:20px">📊</div>
+          <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:12px;letter-spacing:-0.02em">구독 분석을 시작해보세요</h2>
+          <p class="text-muted" style="font-size:0.9rem;line-height:1.7;margin-bottom:32px">
+            구독 서비스를 직접 추가하거나,<br>
+            데모 데이터로 먼저 기능을 체험해보세요.
+          </p>
+          <div style="display:flex;flex-direction:column;gap:10px;align-items:center">
+            <button class="btn btn-primary" style="width:240px;justify-content:center;padding:13px 24px;font-size:0.95rem" id="ob-add">
+              + 첫 번째 구독 추가하기
+            </button>
+            <button class="btn btn-secondary" style="width:240px;justify-content:center;padding:13px 24px;font-size:0.95rem" id="ob-demo">
+              🧪 데모 데이터 불러오기
+            </button>
+          </div>
+          <p class="text-xs text-muted" style="margin-top:16px">데모 데이터는 가상의 데이터로 실제 사용량과 다릅니다</p>
+        </div>`;
+      container.querySelector('#ob-add')?.addEventListener('click', () => { navigate('subscriptions'); setTimeout(() => openSubModal(null), 100); });
+      container.querySelector('#ob-demo')?.addEventListener('click', () => {
+        global._appState = AppDemoData.generateDemoState();
+        AppStore.save(global._appState);
+        refreshApp();
+      });
+      return;
+    }
     if (state.isDemo) {
       const banner = document.createElement('div');
       banner.id = 'demo-banner';
@@ -1243,8 +1270,17 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">가격 (KRW) *</label>
-              <input class="form-input" name="price" type="number" required value="${existing?.price||''}">
+              <label class="form-label">가격 *</label>
+              <div style="display:flex;gap:6px">
+                <input class="form-input" name="priceRaw" type="number" required
+                  value="${existing?.currency==='USD' ? (existing.price/1500).toFixed(2) : (existing?.price||'')}"
+                  placeholder="금액" style="flex:1" id="price-raw-input">
+                <select class="form-select" name="currency" id="currency-select" style="width:80px">
+                  <option value="KRW" ${(!existing||existing.currency==='KRW')?'selected':''}>KRW</option>
+                  <option value="USD" ${existing?.currency==='USD'?'selected':''}>USD</option>
+                </select>
+              </div>
+              <div id="price-preview" class="text-xs text-muted" style="margin-top:4px"></div>
             </div>
             <div class="form-group">
               <label class="form-label">결제 주기</label>
@@ -1306,6 +1342,23 @@
       applyOCRResult(overlay, result);
     });
 
+    // 통화 환산 미리보기 (1 USD = 1500 KRW)
+    const USD_RATE = 1500;
+    function updatePricePreview() {
+      const raw = parseFloat(overlay.querySelector('#price-raw-input')?.value) || 0;
+      const cur = overlay.querySelector('#currency-select')?.value;
+      const preview = overlay.querySelector('#price-preview');
+      if (!preview || !raw) { if (preview) preview.textContent = ''; return; }
+      if (cur === 'USD') {
+        preview.textContent = `= ₩${Math.round(raw * USD_RATE).toLocaleString()} (1달러 = 1,500원 기준)`;
+      } else {
+        preview.textContent = `≈ $${(raw / USD_RATE).toFixed(2)}`;
+      }
+    }
+    overlay.querySelector('#price-raw-input')?.addEventListener('input', updatePricePreview);
+    overlay.querySelector('#currency-select')?.addEventListener('change', updatePricePreview);
+    updatePricePreview();
+
     // 서비스명 자동완성 (service-db)
     overlay.querySelector('#svc-name-input')?.addEventListener('blur', e => {
       if (existing) return; // 수정 시에는 건드리지 않음
@@ -1326,14 +1379,18 @@
       e.preventDefault();
       const fd = new FormData(e.target);
       const now = new Date().toISOString().slice(0, 10);
+      const USD_RATE = 1500;
+      const rawPrice = parseFloat(fd.get('priceRaw')) || 0;
+      const currency = fd.get('currency') || 'KRW';
+      const priceKRW = currency === 'USD' ? Math.round(rawPrice * USD_RATE) : Math.round(rawPrice);
       const data = {
         id:                  existing?.id || ('sub_' + Date.now()),
         serviceId:           existing?.serviceId || fd.get('serviceName').toLowerCase().replace(/\s+/g, '_'),
         planId:              existing?.planId    || (fd.get('serviceName').toLowerCase().replace(/\s+/g, '_') + '_plan'),
         serviceName:         fd.get('serviceName'),
         planName:            fd.get('planName') || 'Standard',
-        price:               parseFloat(fd.get('price')) || 0,
-        currency:            'KRW',
+        price:               priceKRW,
+        currency:            'KRW',   // 내부는 항상 KRW로 통일
         taxIncluded:         true,
         billingCycle:        fd.get('billingCycle'),
         nextBillingDate:     fd.get('nextBillingDate') || now,
@@ -1513,13 +1570,8 @@
   }
 
   function initApp() {
-    // 상태 로드
+    // 상태 로드 (빈 상태로 시작 — 데모 데이터는 사용자가 직접 불러옴)
     let state = AppStore.load();
-    // 데이터 없으면 데모 데이터 적재
-    if (!state.subscriptions.length) {
-      state = AppDemoData.generateDemoState();
-      AppStore.save(state);
-    }
     global._appState = state;
     global._appState.settings.today = AppDemoData.TODAY;
 
