@@ -954,6 +954,146 @@
     const state = global._appState;
     const C     = global._computed;
     if (!state || !C) return;
+
+    // ── 프리미엄 여부 확인 (현재 데모: 항상 미구독) ──
+    const isPremium = state.settings?.premium === true;
+
+    if (!isPremium) {
+      renderPortfolioLocked(container, state, C);
+      return;
+    }
+    renderPortfolioFull(container, state, C);
+  });
+
+  /* ── 잠금 화면: 도메인 지식 기반 티저 ── */
+  function renderPortfolioLocked(container, state, C) {
+    const { analysis } = C;
+    const subs = state.subscriptions;
+
+    // 구독 포트폴리오 기반 인사이트 티저 생성 (실제 계산은 하되 블러 처리)
+    const insights = [];
+
+    // 1. 기능 중복 감지
+    const aiSubs = subs.filter(s => s.category === 'ai');
+    if (aiSubs.length >= 2) {
+      insights.push({
+        icon: '🔁',
+        title: 'AI 구독 중복 감지',
+        teaser: `${aiSubs.map(s=>s.serviceName).slice(0,2).join(', ')} 등 ${aiSubs.length}개의 AI 도구를 구독 중입니다. 기능 겹침을 분석해 드릴 수 있어요.`,
+        blur: true,
+        detail: `월 최대 ₩${Math.round(aiSubs.slice(1).reduce((s,sub)=>s+AppCatalog.toMonthlyAmount(sub.price,sub.billingCycle),0)).toLocaleString()} 절감 가능`,
+      });
+    }
+
+    // 2. 저활용 고가 서비스
+    const cancelItems = analysis.items.filter(r => r.recommendation.label === '해지 검토');
+    if (cancelItems.length > 0) {
+      insights.push({
+        icon: '✂️',
+        title: `${cancelItems.length}개 서비스 해지 검토`,
+        teaser: `분석 결과 활용도가 낮은 구독이 발견되었습니다.`,
+        blur: true,
+        detail: `월 ${Math.round(analysis.summary.monthlySavingsKRW).toLocaleString()}원 / 연 ${Math.round(analysis.summary.monthlySavingsKRW*12).toLocaleString()}원 절감 가능`,
+      });
+    }
+
+    // 3. 카테고리별 포트폴리오 구성
+    const categories = [...new Set(subs.map(s => s.category))];
+    insights.push({
+      icon: '📊',
+      title: '카테고리별 지출 분석',
+      teaser: `${categories.length}개 카테고리에 걸쳐 구독 중입니다. 카테고리별 ROI를 분석해 드릴게요.`,
+      blur: true,
+      detail: `${categories.map(c => AppConfig.CATEGORIES[c]?.label || c).join(' · ')}`,
+    });
+
+    // 4. 요금제 전환 기회 (service-db 기반)
+    const upgradeable = subs.filter(s => {
+      const db = AppServiceDB.lookup(s.serviceId);
+      return db && db.replacementHint <= 2;
+    });
+    if (upgradeable.length > 0) {
+      insights.push({
+        icon: '🔄',
+        title: '요금제 전환 기회',
+        teaser: `${upgradeable.length}개 서비스에서 더 적합한 요금제가 있을 수 있어요.`,
+        blur: true,
+        detail: '패밀리 플랜, 연간 플랜 절감 기회 포함',
+      });
+    }
+
+    container.innerHTML = '';
+
+    // 헤더
+    const header = document.createElement('div');
+    header.style.cssText = 'text-align:center;padding:32px 20px 24px;';
+    header.innerHTML = `
+      <div style="font-size:2rem;margin-bottom:12px">🔒</div>
+      <h2 style="font-size:1.25rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:8px">구독 최적화 분석</h2>
+      <p class="text-muted text-sm" style="max-width:420px;margin:0 auto">
+        내 구독 포트폴리오를 AI 도메인 지식과 결합해<br>
+        최적화 인사이트를 제공합니다.
+      </p>`;
+    container.appendChild(header);
+
+    // 티저 카드들 (블러 처리)
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:28px;';
+    insights.forEach((ins, i) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.position = 'relative';
+      card.style.overflow = 'hidden';
+      card.innerHTML = `
+        <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px">
+          <span style="font-size:1.4rem;flex-shrink:0">${ins.icon}</span>
+          <div>
+            <div style="font-size:0.88rem;font-weight:700;margin-bottom:4px">${ins.title}</div>
+            <div class="text-sm text-muted">${ins.teaser}</div>
+          </div>
+        </div>
+        <div style="filter:blur(5px);background:rgba(91,127,255,0.08);border-radius:var(--r-sm);padding:8px 12px;font-size:0.82rem;font-weight:600;color:var(--c-accent);pointer-events:none">
+          ${ins.detail}
+        </div>
+        ${i === 0 ? '<div style="position:absolute;top:10px;right:10px"><span class="badge badge-purple">인기</span></div>' : ''}`;
+      grid.appendChild(card);
+    });
+    container.appendChild(grid);
+
+    // 잠금 CTA
+    const cta = document.createElement('div');
+    cta.style.cssText = 'text-align:center;background:linear-gradient(135deg,rgba(91,127,255,0.1),rgba(155,125,255,0.07));border:1px solid rgba(91,127,255,0.2);border-radius:var(--r-lg);padding:36px 28px;';
+    cta.innerHTML = `
+      <div style="font-size:1.6rem;margin-bottom:12px">✨</div>
+      <h3 style="font-size:1.1rem;font-weight:800;margin-bottom:8px">전체 분석 리포트 받기</h3>
+      <p class="text-muted text-sm" style="max-width:380px;margin:0 auto 20px">
+        ${subs.length}개 구독의 상세 분석 · 절감 기회 · 추천 포트폴리오를<br>
+        도메인 전문 지식과 함께 제공합니다.
+      </p>
+      <div style="display:flex;align-items:baseline;justify-content:center;gap:8px;margin-bottom:20px">
+        <span style="font-size:1.8rem;font-weight:900;background:var(--g-accent);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">월 990원</span>
+        <span class="text-muted text-sm">/ 언제든지 해지 가능</span>
+      </div>
+      <button class="btn btn-primary" style="padding:13px 32px;font-size:0.95rem;font-weight:700;box-shadow:0 8px 24px rgba(91,127,255,0.3)" id="btn-premium-unlock">
+        분석 리포트 잠금 해제하기 →
+      </button>
+      <p class="text-xs text-muted" style="margin-top:12px">
+        현재 데모 버전입니다 · 결제 기능은 준비 중입니다
+      </p>`;
+    container.appendChild(cta);
+
+    // 데모: 잠금 해제 버튼 → 안내 토스트
+    container.querySelector('#btn-premium-unlock')?.addEventListener('click', () => {
+      const toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);padding:12px 24px;font-size:0.85rem;box-shadow:var(--shadow-lg);z-index:9999;animation:fadeIn 0.2s ease';
+      toast.textContent = '🚀 결제 기능은 현재 준비 중입니다. 곧 만나요!';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    });
+  }
+
+  /* ── 포트폴리오 전체 뷰 (프리미엄 전용) ── */
+  function renderPortfolioFull(container, state, C) {
     const { analysis } = C;
     const LABELS = AppConfig.RECOMMENDATION_LABELS;
 
@@ -1037,7 +1177,7 @@
       });
       container.appendChild(holdSec);
     }
-  });
+  }  // end renderPortfolioFull
 
   /* ══════════════════════════════════════════
    * VIEW: SETTINGS (§9.6)
@@ -1445,6 +1585,197 @@
   }
 
   /* ══════════════════════════════════════════
+   * VIEW: ONBOARDING — 첫 방문 서비스 선택
+   * ══════════════════════════════════════════ */
+  registerView('onboarding', function (container) {
+    // 단계 상태
+    let step = 1;
+    let selectedServices = []; // [{ serviceId, name, icon, category }]
+
+    // 추천 서비스 목록 (3×N 그리드)
+    const QUICK_SERVICES = [
+      // AI
+      { serviceId:'chatgpt',    name:'ChatGPT',       icon:'🤖', category:'ai',           defaultPrice:24000,  currency:'KRW' },
+      { serviceId:'claude',     name:'Claude',         icon:'🧠', category:'ai',           defaultPrice:28000,  currency:'KRW' },
+      { serviceId:'perplexity', name:'Perplexity',     icon:'🔍', category:'ai',           defaultPrice:20000,  currency:'KRW' },
+      { serviceId:'gemini',     name:'Gemini',         icon:'✨', category:'ai',           defaultPrice:20,     currency:'USD' },
+      // 개발
+      { serviceId:'cursor',     name:'Cursor',         icon:'⌨️', category:'dev',          defaultPrice:20,     currency:'USD' },
+      { serviceId:'github',     name:'GitHub Pro',     icon:'💻', category:'dev',          defaultPrice:4,      currency:'USD' },
+      // 디자인
+      { serviceId:'figma',      name:'Figma',          icon:'🎨', category:'design',       defaultPrice:15,     currency:'USD' },
+      { serviceId:'canva',      name:'Canva',          icon:'🖼️', category:'design',       defaultPrice:17000,  currency:'KRW' },
+      { serviceId:'adobe',      name:'Adobe CC',       icon:'📐', category:'design',       defaultPrice:74000,  currency:'KRW' },
+      // 생산성
+      { serviceId:'notion',     name:'Notion',         icon:'📝', category:'productivity', defaultPrice:15000,  currency:'KRW' },
+      { serviceId:'slack',      name:'Slack',          icon:'💬', category:'productivity', defaultPrice:6,      currency:'USD' },
+      { serviceId:'microsoft365',name:'MS 365',        icon:'📊', category:'productivity', defaultPrice:9900,   currency:'KRW' },
+      // 영상
+      { serviceId:'netflix',    name:'Netflix',        icon:'🎬', category:'media',        defaultPrice:17000,  currency:'KRW' },
+      { serviceId:'youtube_premium', name:'YouTube Premium', icon:'▶️', category:'media',  defaultPrice:14900,  currency:'KRW' },
+      { serviceId:'disney',     name:'Disney+',        icon:'🏰', category:'media',        defaultPrice:9900,   currency:'KRW' },
+      // 음악
+      { serviceId:'spotify',    name:'Spotify',        icon:'🎵', category:'music',        defaultPrice:11990,  currency:'KRW' },
+      { serviceId:'melon',      name:'Melon',          icon:'🍈', category:'music',        defaultPrice:11000,  currency:'KRW' },
+      { serviceId:'apple_music', name:'Apple Music',   icon:'🎶', category:'music',        defaultPrice:11000,  currency:'KRW' },
+      // 게임
+      { serviceId:'xbox_gamepass', name:'Xbox Game Pass', icon:'🎮', category:'game',     defaultPrice:9900,   currency:'KRW' },
+      { serviceId:'playstation_plus', name:'PS Plus',  icon:'🕹️', category:'game',        defaultPrice:9900,   currency:'KRW' },
+      // 쇼핑/배달
+      { serviceId:'coupang_wow', name:'쿠팡 WOW',      icon:'🛒', category:'shopping',    defaultPrice:7890,   currency:'KRW' },
+      { serviceId:'baemin_club', name:'배민클럽',       icon:'🛵', category:'delivery',    defaultPrice:3900,   currency:'KRW' },
+      // 클라우드
+      { serviceId:'icloud',     name:'iCloud+',        icon:'☁️', category:'cloud',       defaultPrice:1200,   currency:'KRW' },
+      { serviceId:'google_one', name:'Google One',     icon:'🗄️', category:'cloud',       defaultPrice:2400,   currency:'KRW' },
+    ];
+
+    const USD_RATE = 1500;
+
+    function renderStep1() {
+      container.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'max-width:640px;margin:0 auto;padding:20px 0';
+
+      wrap.innerHTML = `
+        <div style="text-align:center;margin-bottom:28px">
+          <div style="font-size:2rem;margin-bottom:10px">👋</div>
+          <h2 style="font-size:1.3rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:8px">지금 이런 거 이용하고 계신가요?</h2>
+          <p class="text-muted text-sm">구독 중인 서비스를 선택하면 바로 분석이 시작됩니다.<br>나중에 언제든지 추가·수정할 수 있어요.</p>
+        </div>
+        <div id="ob-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px"></div>
+        <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px">
+          <button class="btn btn-primary" id="ob-next" style="width:220px;justify-content:center;padding:12px 24px" disabled>
+            선택 완료 →
+          </button>
+          <button class="btn btn-ghost btn-sm" id="ob-skip">이 목록에 없어요, 직접 추가할게요</button>
+          <button class="btn btn-ghost btn-sm" id="ob-demo">🧪 데모 데이터로 둘러보기</button>
+        </div>`;
+      container.appendChild(wrap);
+
+      const grid = wrap.querySelector('#ob-grid');
+      QUICK_SERVICES.forEach(svc => {
+        const card = document.createElement('div');
+        card.style.cssText = `
+          background:var(--c-surface);border:2px solid var(--c-border);border-radius:var(--r-md);
+          padding:14px 10px;text-align:center;cursor:pointer;transition:all 0.15s;user-select:none;`;
+        card.innerHTML = `
+          <div style="font-size:1.6rem;margin-bottom:6px">${svc.icon}</div>
+          <div style="font-size:0.78rem;font-weight:600;line-height:1.3">${svc.name}</div>
+          <div style="font-size:0.65rem;color:var(--c-muted);margin-top:3px">${AppConfig.CATEGORIES[svc.category]?.label || svc.category}</div>`;
+        const isSelected = () => selectedServices.some(s => s.serviceId === svc.serviceId);
+        const update = () => {
+          card.style.borderColor = isSelected() ? 'var(--c-accent)' : 'var(--c-border)';
+          card.style.background  = isSelected() ? 'rgba(91,127,255,0.08)' : 'var(--c-surface)';
+          const btn = wrap.querySelector('#ob-next');
+          if (btn) btn.disabled = selectedServices.length === 0;
+        };
+        card.addEventListener('click', () => {
+          if (isSelected()) {
+            selectedServices = selectedServices.filter(s => s.serviceId !== svc.serviceId);
+          } else {
+            selectedServices.push(svc);
+          }
+          update();
+        });
+        update();
+        grid.appendChild(card);
+      });
+
+      wrap.querySelector('#ob-next').addEventListener('click', () => { step = 2; renderStep2(); });
+      wrap.querySelector('#ob-skip').addEventListener('click', () => {
+        navigate('subscriptions');
+        setTimeout(() => openSubModal(null), 100);
+      });
+      wrap.querySelector('#ob-demo').addEventListener('click', () => {
+        global._appState = AppDemoData.generateDemoState();
+        AppStore.save(global._appState);
+        refreshApp();
+        navigate('dashboard');
+      });
+    }
+
+    function renderStep2() {
+      container.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'max-width:560px;margin:0 auto;padding:20px 0';
+      wrap.innerHTML = `
+        <div style="text-align:center;margin-bottom:24px">
+          <h2 style="font-size:1.2rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:8px">선택한 서비스의 요금을 확인해주세요</h2>
+          <p class="text-muted text-sm">기본 요금이 자동으로 채워졌어요. 실제 결제 금액이 다르면 수정해 주세요.</p>
+        </div>
+        <div id="ob-price-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px"></div>
+        <div style="background:var(--c-surface2);border:1px dashed var(--c-border);border-radius:var(--r-md);padding:12px 16px;margin-bottom:20px;font-size:0.82rem;color:var(--c-muted)">
+          💡 추가로 구독 중인 서비스가 있다면 나중에 <strong style="color:var(--c-text)">구독 목록 → 구독 추가</strong>에서 더 넣을 수 있어요.
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center">
+          <button class="btn btn-ghost btn-sm" id="ob-back">← 다시 선택</button>
+          <button class="btn btn-primary" id="ob-finish" style="padding:12px 28px;justify-content:center">분석 시작하기 🚀</button>
+        </div>`;
+      container.appendChild(wrap);
+
+      const list = wrap.querySelector('#ob-price-list');
+      selectedServices.forEach(svc => {
+        const priceKRW = svc.currency === 'USD'
+          ? Math.round(svc.defaultPrice * USD_RATE)
+          : svc.defaultPrice;
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:12px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:11px 14px;';
+        row.innerHTML = `
+          <span style="font-size:1.3rem;flex-shrink:0">${svc.icon}</span>
+          <span style="font-weight:600;font-size:0.88rem;flex:1">${svc.name}</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" class="form-input ob-price-input" data-id="${svc.serviceId}"
+              value="${priceKRW}" style="width:110px;text-align:right;padding:6px 10px;font-size:0.85rem">
+            <span class="text-xs text-muted">원/월</span>
+          </div>`;
+        list.appendChild(row);
+      });
+
+      wrap.querySelector('#ob-back').addEventListener('click', () => { step = 1; renderStep1(); });
+      wrap.querySelector('#ob-finish').addEventListener('click', () => {
+        const state = global._appState;
+        const today = AppDemoData.TODAY;
+        const inputs = wrap.querySelectorAll('.ob-price-input');
+        inputs.forEach(input => {
+          const svc = selectedServices.find(s => s.serviceId === input.dataset.id);
+          if (!svc) return;
+          const price = parseInt(input.value) || 0;
+          const dbInfo = AppServiceDB.autofill(svc.serviceId) || {};
+          state.subscriptions.push({
+            id: 'sub_' + svc.serviceId + '_' + Date.now(),
+            serviceId: svc.serviceId,
+            planId: svc.serviceId + '_plan',
+            serviceName: svc.name,
+            planName: '기본',
+            price,
+            currency: 'KRW',
+            taxIncluded: true,
+            billingCycle: 'monthly',
+            nextBillingDate: new Date(new Date(today+'T00:00:00Z').getTime() + 30*86400000).toISOString().slice(0,10),
+            committedUntil: null,
+            seats: 1,
+            category: svc.category,
+            capabilityTags: dbInfo.capabilityTags || [],
+            purpose: 'personal',
+            importance: null,
+            replacementDifficulty: null,
+            collectible: true,
+            keepUntil: null,
+            createdAt: today,
+            updatedAt: today,
+          });
+        });
+        AppStore.save(state);
+        refreshApp();
+        navigate('dashboard');
+      });
+    }
+
+    // Step 1부터 시작
+    renderStep1();
+  });
+
+  /* ══════════════════════════════════════════
    * VIEW: CALENDAR — 결제 캘린더 (§9.9)
    * ══════════════════════════════════════════ */
   registerView('calendar', function (container) {
@@ -1574,13 +1905,18 @@
 
   function initApp() {
     // 상태 로드
-    // ?fresh=1 파라미터가 있으면 기존 데이터 초기화 후 온보딩 시작
-    if (new URLSearchParams(window.location.search).get('fresh') === '1') {
+    // ?fresh=1 또는 sessionStorage 'subvalue_fresh' 플래그 → 온보딩 강제 진입
+    const urlParams = new URLSearchParams(window.location.search);
+    const isFresh   = urlParams.get('fresh') === '1' || sessionStorage.getItem('subvalue_fresh') === '1';
+    if (isFresh) {
       localStorage.removeItem('subvalue_app');
-      // URL에서 파라미터 제거 (새로고침 시 반복 초기화 방지)
+      sessionStorage.removeItem('subvalue_fresh');
       history.replaceState(null, '', window.location.pathname);
     }
     let state = AppStore.load();
+    // 구독이 없으면 온보딩 뷰로 시작
+    const startView = (!state.subscriptions || state.subscriptions.length === 0)
+      ? 'onboarding' : 'dashboard';
     global._appState = state;
     global._appState.settings.today = AppDemoData.TODAY;
 
@@ -1602,6 +1938,8 @@
     });
 
     refreshApp();
+    // 구독이 없으면 온보딩으로
+    if (startView === 'onboarding') navigate('onboarding');
   }
 
   /* ══════════════════════════════════════════

@@ -526,3 +526,15 @@
 
 </body>
 </html>
+
+<script>
+// 랜딩 → 앱 이동 시 sessionStorage에 fresh 플래그 심기
+// (localStorage 초기화 및 온보딩 진입 보장)
+document.querySelectorAll('a[href*="app.html"]').forEach(function(a) {
+  a.addEventListener('click', function() {
+    sessionStorage.setItem('subvalue_fresh', '1');
+  });
+});
+</script>
+</body>
+</html>
