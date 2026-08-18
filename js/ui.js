@@ -319,7 +319,11 @@
     billings.forEach(b => {
       const item = document.createElement('div');
       item.className = 'billing-item';
-      const dText = b.daysUntilBilling === 0 ? '오늘' : `D+${b.daysUntilBilling}`;
+      const dText = b.daysUntilBilling === 0
+        ? '오늘'
+        : b.daysUntilBilling > 0
+          ? `D+${b.daysUntilBilling}`
+          : `D${b.daysUntilBilling}`;
       item.innerHTML = `
         <span>${svcIcon(b.serviceId)}</span>
         <span style="flex:1;font-size:0.84rem;font-weight:500">${b.serviceName}</span>
@@ -528,7 +532,7 @@
         <div><div class="text-xs text-muted">시간당 비용</div><div class="font-bold">${sb.costPerHour ? krw(sb.costPerHour)+'/h' : '측정 안 됨'}</div></div>
         <div><div class="text-xs text-muted">미사용일</div><div class="font-bold">${tier==='C'?'측정 안 됨':sb.unusedDays+'일'}</div></div>
         <div><div class="text-xs text-muted">마지막 사용</div><div class="font-bold">${sb.lastUsedDate ? sb.daysSinceLastUse+'일 전' : (tier==='C'?'측정 안 됨':'없음')}</div></div>
-        <div><div class="text-xs text-muted">결제까지</div><div class="font-bold">D+${sb.daysUntilBilling}</div></div>
+        <div><div class="text-xs text-muted">결제까지</div><div class="font-bold">${sb.daysUntilBilling === 0 ? '오늘' : sb.daysUntilBilling > 0 ? 'D+'+sb.daysUntilBilling : 'D'+sb.daysUntilBilling}</div></div>
       </div>`;
     }
     container.appendChild(hdr);
@@ -1752,103 +1756,113 @@
    * VIEW: ONBOARDING — 첫 방문 서비스 선택
    * ══════════════════════════════════════════ */
   registerView('onboarding', function (container) {
-    // 단계 상태
-    let step = 1;
-    let selectedServices = []; // [{ serviceId, name, icon, category }]
+    const USD_RATE = 1500;
 
-    // 추천 서비스 목록 (3×N 그리드)
     const QUICK_SERVICES = [
-      // AI
-      { serviceId:'chatgpt',    name:'ChatGPT',       icon:'🤖', category:'ai',           defaultPrice:24000,  currency:'KRW' },
-      { serviceId:'claude',     name:'Claude',         icon:'🧠', category:'ai',           defaultPrice:28000,  currency:'KRW' },
-      { serviceId:'perplexity', name:'Perplexity',     icon:'🔍', category:'ai',           defaultPrice:20000,  currency:'KRW' },
-      { serviceId:'gemini',     name:'Gemini',         icon:'✨', category:'ai',           defaultPrice:20,     currency:'USD' },
-      // 개발
-      { serviceId:'cursor',     name:'Cursor',         icon:'⌨️', category:'dev',          defaultPrice:20,     currency:'USD' },
-      { serviceId:'github',     name:'GitHub Pro',     icon:'💻', category:'dev',          defaultPrice:4,      currency:'USD' },
-      // 디자인
-      { serviceId:'figma',      name:'Figma',          icon:'🎨', category:'design',       defaultPrice:15,     currency:'USD' },
-      { serviceId:'canva',      name:'Canva',          icon:'🖼️', category:'design',       defaultPrice:17000,  currency:'KRW' },
-      { serviceId:'adobe',      name:'Adobe CC',       icon:'📐', category:'design',       defaultPrice:74000,  currency:'KRW' },
-      // 생산성
-      { serviceId:'notion',     name:'Notion',         icon:'📝', category:'productivity', defaultPrice:15000,  currency:'KRW' },
-      { serviceId:'slack',      name:'Slack',          icon:'💬', category:'productivity', defaultPrice:6,      currency:'USD' },
-      { serviceId:'microsoft365',name:'MS 365',        icon:'📊', category:'productivity', defaultPrice:9900,   currency:'KRW' },
-      // 영상
-      { serviceId:'netflix',    name:'Netflix',        icon:'🎬', category:'media',        defaultPrice:17000,  currency:'KRW' },
-      { serviceId:'youtube_premium', name:'YouTube Premium', icon:'▶️', category:'media',  defaultPrice:14900,  currency:'KRW' },
-      { serviceId:'disney',     name:'Disney+',        icon:'🏰', category:'media',        defaultPrice:9900,   currency:'KRW' },
-      // 음악
-      { serviceId:'spotify',    name:'Spotify',        icon:'🎵', category:'music',        defaultPrice:11990,  currency:'KRW' },
-      { serviceId:'melon',      name:'Melon',          icon:'🍈', category:'music',        defaultPrice:11000,  currency:'KRW' },
-      { serviceId:'apple_music', name:'Apple Music',   icon:'🎶', category:'music',        defaultPrice:11000,  currency:'KRW' },
-      // 게임
-      { serviceId:'xbox_gamepass', name:'Xbox Game Pass', icon:'🎮', category:'game',     defaultPrice:9900,   currency:'KRW' },
-      { serviceId:'playstation_plus', name:'PS Plus',  icon:'🕹️', category:'game',        defaultPrice:9900,   currency:'KRW' },
-      // 쇼핑/배달
-      { serviceId:'coupang_wow', name:'쿠팡 WOW',      icon:'🛒', category:'shopping',    defaultPrice:7890,   currency:'KRW' },
-      { serviceId:'baemin_club', name:'배민클럽',       icon:'🛵', category:'delivery',    defaultPrice:3900,   currency:'KRW' },
-      // 클라우드
-      { serviceId:'icloud',     name:'iCloud+',        icon:'☁️', category:'cloud',       defaultPrice:1200,   currency:'KRW' },
-      { serviceId:'google_one', name:'Google One',     icon:'🗄️', category:'cloud',       defaultPrice:2400,   currency:'KRW' },
+      { serviceId:'chatgpt',         name:'ChatGPT',          icon:'🤖', category:'ai',           defaultPrice:24000, currency:'KRW' },
+      { serviceId:'claude',          name:'Claude',            icon:'🧠', category:'ai',           defaultPrice:28000, currency:'KRW' },
+      { serviceId:'perplexity',      name:'Perplexity',        icon:'🔍', category:'ai',           defaultPrice:20000, currency:'KRW' },
+      { serviceId:'gemini',          name:'Gemini',            icon:'✨', category:'ai',           defaultPrice:20,    currency:'USD' },
+      { serviceId:'cursor',          name:'Cursor',            icon:'⌨️', category:'dev',          defaultPrice:20,    currency:'USD' },
+      { serviceId:'github',          name:'GitHub Pro',        icon:'💻', category:'dev',          defaultPrice:4,     currency:'USD' },
+      { serviceId:'figma',           name:'Figma',             icon:'🎨', category:'design',       defaultPrice:15,    currency:'USD' },
+      { serviceId:'canva',           name:'Canva',             icon:'🖼️', category:'design',       defaultPrice:17000, currency:'KRW' },
+      { serviceId:'adobe',           name:'Adobe CC',          icon:'📐', category:'design',       defaultPrice:74000, currency:'KRW' },
+      { serviceId:'notion',          name:'Notion',            icon:'📝', category:'productivity', defaultPrice:15000, currency:'KRW' },
+      { serviceId:'slack',           name:'Slack',             icon:'💬', category:'productivity', defaultPrice:6,     currency:'USD' },
+      { serviceId:'microsoft365',    name:'MS 365',            icon:'📊', category:'productivity', defaultPrice:9900,  currency:'KRW' },
+      { serviceId:'netflix',         name:'Netflix',           icon:'🎬', category:'media',        defaultPrice:17000, currency:'KRW' },
+      { serviceId:'youtube_premium', name:'YouTube Premium',   icon:'▶️', category:'media',        defaultPrice:14900, currency:'KRW' },
+      { serviceId:'disney',          name:'Disney+',           icon:'🏰', category:'media',        defaultPrice:9900,  currency:'KRW' },
+      { serviceId:'spotify',         name:'Spotify',           icon:'🎵', category:'music',        defaultPrice:11990, currency:'KRW' },
+      { serviceId:'melon',           name:'Melon',             icon:'🍈', category:'music',        defaultPrice:11000, currency:'KRW' },
+      { serviceId:'apple_music',     name:'Apple Music',       icon:'🎶', category:'music',        defaultPrice:11000, currency:'KRW' },
+      { serviceId:'xbox_gamepass',   name:'Xbox Game Pass',    icon:'🎮', category:'game',         defaultPrice:9900,  currency:'KRW' },
+      { serviceId:'playstation_plus',name:'PS Plus',           icon:'🕹️', category:'game',        defaultPrice:9900,  currency:'KRW' },
+      { serviceId:'coupang_wow',     name:'쿠팡 WOW',           icon:'🛒', category:'shopping',    defaultPrice:7890,  currency:'KRW' },
+      { serviceId:'baemin_club',     name:'배민클럽',             icon:'🛵', category:'delivery',   defaultPrice:3900,  currency:'KRW' },
+      { serviceId:'icloud',          name:'iCloud+',           icon:'☁️', category:'cloud',        defaultPrice:1200,  currency:'KRW' },
+      { serviceId:'google_one',      name:'Google One',        icon:'🗄️', category:'cloud',        defaultPrice:2400,  currency:'KRW' },
     ];
 
-    function renderStep1() {
+    // ── 선택 상태 (Set으로 관리 → 중복 원천 차단) ──
+    const selectedSet = new Set(); // serviceId 집합
+
+    // ── Step 1: 서비스 선택 ──
+    function showStep1() {
       container.innerHTML = '';
+
       const wrap = document.createElement('div');
       wrap.style.cssText = 'max-width:640px;margin:0 auto;padding:20px 0';
-
-      wrap.innerHTML = `
-        <div style="text-align:center;margin-bottom:28px">
-          <div style="font-size:2rem;margin-bottom:10px">👋</div>
-          <h2 style="font-size:1.3rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:8px">지금 이런 거 이용하고 계신가요?</h2>
-          <p class="text-muted text-sm">구독 중인 서비스를 선택하면 바로 분석이 시작됩니다.<br>나중에 언제든지 추가·수정할 수 있어요.</p>
-        </div>
-        <div id="ob-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px"></div>
-        <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px">
-          <button class="btn btn-primary" id="ob-next" style="width:220px;justify-content:center;padding:12px 24px" disabled>
-            선택 완료 →
-          </button>
-          <button class="btn btn-ghost btn-sm" id="ob-skip">이 목록에 없어요, 직접 추가할게요</button>
-          <button class="btn btn-ghost btn-sm" id="ob-demo">🧪 데모 데이터로 둘러보기</button>
-        </div>`;
       container.appendChild(wrap);
 
-      const grid = wrap.querySelector('#ob-grid');
+      // 헤더
+      const hdr = document.createElement('div');
+      hdr.style.cssText = 'text-align:center;margin-bottom:24px';
+      hdr.innerHTML = `
+        <div style="font-size:2rem;margin-bottom:10px">👋</div>
+        <h2 style="font-size:1.25rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:8px">지금 이런 거 이용하고 계신가요?</h2>
+        <p class="text-muted text-sm">구독 중인 서비스를 골라주세요. 나중에 언제든 추가·수정할 수 있어요.</p>`;
+      wrap.appendChild(hdr);
+
+      // 그리드
+      const grid = document.createElement('div');
+      grid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px';
+      wrap.appendChild(grid);
+
       QUICK_SERVICES.forEach(svc => {
         const card = document.createElement('div');
-        card.style.cssText = `
-          background:var(--c-surface);border:2px solid var(--c-border);border-radius:var(--r-md);
-          padding:14px 10px;text-align:center;cursor:pointer;transition:all 0.15s;user-select:none;`;
+        card.dataset.sid = svc.serviceId;
+        card.style.cssText = 'background:var(--c-surface);border:2px solid var(--c-border);border-radius:var(--r-md);padding:14px 10px;text-align:center;cursor:pointer;transition:all 0.15s;user-select:none;';
         card.innerHTML = `
           <div style="font-size:1.6rem;margin-bottom:6px">${svc.icon}</div>
           <div style="font-size:0.78rem;font-weight:600;line-height:1.3">${svc.name}</div>
           <div style="font-size:0.65rem;color:var(--c-muted);margin-top:3px">${AppConfig.CATEGORIES[svc.category]?.label || svc.category}</div>`;
-        const isSelected = () => selectedServices.some(s => s.serviceId === svc.serviceId);
-        const update = () => {
-          card.style.borderColor = isSelected() ? 'var(--c-accent)' : 'var(--c-border)';
-          card.style.background  = isSelected() ? 'rgba(91,127,255,0.08)' : 'var(--c-surface)';
-          const btn = wrap.querySelector('#ob-next');
-          if (btn) btn.disabled = selectedServices.length === 0;
-        };
+
+        function applyStyle() {
+          const sel = selectedSet.has(svc.serviceId);
+          card.style.borderColor = sel ? 'var(--c-accent)' : 'var(--c-border)';
+          card.style.background  = sel ? 'rgba(91,127,255,0.1)' : 'var(--c-surface)';
+          nextBtn.disabled = selectedSet.size === 0;
+        }
+
         card.addEventListener('click', () => {
-          if (isSelected()) {
-            selectedServices = selectedServices.filter(s => s.serviceId !== svc.serviceId);
-          } else {
-            selectedServices.push(svc);
-          }
-          update();
+          if (selectedSet.has(svc.serviceId)) selectedSet.delete(svc.serviceId);
+          else selectedSet.add(svc.serviceId);
+          applyStyle();
         });
-        update();
+
         grid.appendChild(card);
+        // applyStyle은 nextBtn 생성 후 호출해야 하므로 나중에 일괄 처리
       });
 
-      wrap.querySelector('#ob-next').addEventListener('click', () => { step = 2; renderStep2(); });
-      wrap.querySelector('#ob-skip').addEventListener('click', () => {
+      // 버튼 영역
+      const btnWrap = document.createElement('div');
+      btnWrap.style.cssText = 'text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px';
+      btnWrap.innerHTML = `
+        <button class="btn btn-primary" id="ob-next" style="width:220px;justify-content:center;padding:12px 24px" disabled>선택 완료 →</button>
+        <button class="btn btn-ghost btn-sm" id="ob-skip">이 목록에 없어요, 직접 추가할게요</button>
+        <button class="btn btn-ghost btn-sm" id="ob-demo">🧪 데모 데이터로 둘러보기</button>`;
+      wrap.appendChild(btnWrap);
+
+      const nextBtn = btnWrap.querySelector('#ob-next');
+
+      // 카드 스타일 초기화 (nextBtn 생성 후)
+      grid.querySelectorAll('[data-sid]').forEach(card => {
+        const sid = card.dataset.sid;
+        const sel = selectedSet.has(sid);
+        card.style.borderColor = sel ? 'var(--c-accent)' : 'var(--c-border)';
+        card.style.background  = sel ? 'rgba(91,127,255,0.1)' : 'var(--c-surface)';
+      });
+      nextBtn.disabled = selectedSet.size === 0;
+
+      // 이벤트
+      nextBtn.addEventListener('click', () => showStep2());
+      btnWrap.querySelector('#ob-skip').addEventListener('click', () => {
         navigate('subscriptions');
         setTimeout(() => openSubModal(null), 100);
       });
-      wrap.querySelector('#ob-demo').addEventListener('click', () => {
+      btnWrap.querySelector('#ob-demo').addEventListener('click', () => {
         global._appState = AppDemoData.generateDemoState();
         AppStore.save(global._appState);
         refreshApp();
@@ -1856,132 +1870,164 @@
       });
     }
 
-    function renderStep2() {
+    // ── Step 2: 요금 확인 ──
+    function showStep2() {
+      // selectedSet에서 실제 svc 객체 목록 복원
+      const selected = QUICK_SERVICES.filter(s => selectedSet.has(s.serviceId));
+
       container.innerHTML = '';
       const wrap = document.createElement('div');
       wrap.style.cssText = 'max-width:560px;margin:0 auto;padding:20px 0';
-      wrap.innerHTML = `
-        <div style="text-align:center;margin-bottom:24px">
-          <h2 style="font-size:1.2rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:8px">선택한 서비스의 요금을 확인해주세요</h2>
-          <p class="text-muted text-sm">기본 요금이 자동으로 채워졌어요. 무료 플랜을 쓰고 있다면 토글로 바꿔주세요.</p>
-        </div>
-        <div id="ob-price-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px"></div>
-        <div style="background:var(--c-surface2);border:1px dashed var(--c-border);border-radius:var(--r-md);padding:12px 16px;margin-bottom:20px;font-size:0.82rem;color:var(--c-muted)">
-          💡 추가로 구독 중인 서비스가 있다면 나중에 <strong style="color:var(--c-text)">구독 목록 → 구독 추가</strong>에서 더 넣을 수 있어요.
-        </div>
-        <div style="display:flex;gap:10px;justify-content:center">
-          <button class="btn btn-ghost btn-sm" id="ob-back">← 다시 선택</button>
-          <button class="btn btn-primary" id="ob-finish" style="padding:12px 28px;justify-content:center">분석 시작하기 🚀</button>
-        </div>`;
       container.appendChild(wrap);
 
-      // 서비스별 가격 상태 맵 { serviceId: { isFree, price } }
+      // 헤더
+      const hdr = document.createElement('div');
+      hdr.style.cssText = 'text-align:center;margin-bottom:24px';
+      hdr.innerHTML = `
+        <h2 style="font-size:1.2rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:8px">선택한 서비스의 요금을 확인해주세요</h2>
+        <p class="text-muted text-sm">기본 요금이 자동으로 채워졌어요. 무료 플랜이라면 체크해 주세요.</p>`;
+      wrap.appendChild(hdr);
+
+      // 서비스 목록
+      const list = document.createElement('div');
+      list.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-bottom:20px';
+      wrap.appendChild(list);
+
+      // 가격 상태: { serviceId → { isFree, price } }
       const priceState = {};
 
-      const list = wrap.querySelector('#ob-price-list');
-      selectedServices.forEach(svc => {
+      selected.forEach(svc => {
         const defaultKRW = svc.currency === 'USD'
           ? Math.round(svc.defaultPrice * USD_RATE)
           : svc.defaultPrice;
-        const dbInfo = AppServiceDB.autofill(svc.serviceId) || {};
+        const dbInfo = AppServiceDB?.autofill(svc.serviceId) || {};
         const hasFreePlan = dbInfo.hasFreePlan || false;
 
         priceState[svc.serviceId] = { isFree: false, price: defaultKRW };
 
         const row = document.createElement('div');
-        row.style.cssText = 'background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);padding:12px 14px;transition:all 0.15s;';
+        row.style.cssText = 'background:var(--c-surface);border:1.5px solid var(--c-border);border-radius:var(--r-md);padding:12px 14px;transition:border-color 0.15s';
 
-        // 상단: 아이콘 + 서비스명 + 무료 토글(있는 경우)
-        const topRow = document.createElement('div');
-        topRow.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:8px;';
-        topRow.innerHTML = `
+        // 서비스명 행
+        const nameRow = document.createElement('div');
+        nameRow.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:8px';
+        nameRow.innerHTML = `
           <span style="font-size:1.3rem;flex-shrink:0">${svc.icon}</span>
-          <span style="font-weight:600;font-size:0.88rem;flex:1">${svc.name}</span>
-          ${hasFreePlan ? `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.75rem;color:var(--c-muted);white-space:nowrap">
-            <input type="checkbox" class="ob-free-check" data-id="${svc.serviceId}" style="accent-color:var(--c-green)">
-            무료 플랜 이용 중
+          <span style="font-weight:700;font-size:0.9rem;flex:1">${svc.name}</span>
+          ${hasFreePlan ? `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.74rem;color:var(--c-muted);white-space:nowrap">
+            <input type="checkbox" class="free-chk" style="accent-color:var(--c-green)"> 무료 플랜
           </label>` : ''}`;
-        row.appendChild(topRow);
+        row.appendChild(nameRow);
 
-        // 하단: 가격 입력
-        const priceRow = document.createElement('div');
-        priceRow.className = `ob-price-row-${svc.serviceId}`;
-        priceRow.style.cssText = 'display:flex;align-items:center;gap:8px;';
-        priceRow.innerHTML = `
-          <div style="flex:1;background:var(--c-surface2);border-radius:var(--r-sm);padding:3px 8px;display:flex;align-items:center;gap:4px">
-            <span class="text-xs text-muted" style="flex-shrink:0">₩</span>
-            <input type="number" class="ob-price-input" data-id="${svc.serviceId}"
-              value="${defaultKRW}" min="0"
-              style="flex:1;background:none;border:none;outline:none;font-size:0.88rem;font-weight:600;color:var(--c-text);text-align:right;padding:5px 4px">
+        // 가격 입력 행
+        const priceWrap = document.createElement('div');
+        priceWrap.className = 'price-wrap';
+        priceWrap.style.cssText = 'display:flex;align-items:center;gap:8px';
+        priceWrap.innerHTML = `
+          <div style="flex:1;display:flex;align-items:center;gap:4px;background:var(--c-surface2);border-radius:var(--r-sm);padding:4px 10px">
+            <span style="font-size:0.8rem;color:var(--c-muted)">₩</span>
+            <input type="number" class="price-inp" value="${defaultKRW}" min="0"
+              style="flex:1;background:none;border:none;outline:none;font-size:0.9rem;font-weight:600;color:var(--c-text);text-align:right;padding:4px 2px">
           </div>
-          <span class="text-xs text-muted" style="flex-shrink:0">원 / 월</span>`;
+          <span style="font-size:0.75rem;color:var(--c-muted);white-space:nowrap">원/월</span>`;
+        row.appendChild(priceWrap);
 
-        // 무료 플랜 배지 (기본 숨김)
+        // 무료 배지 (숨김)
         const freeBadge = document.createElement('div');
-        freeBadge.className = `ob-free-badge-${svc.serviceId}`;
-        freeBadge.style.display = 'none';
-        freeBadge.innerHTML = `<span class="badge badge-green" style="font-size:0.78rem;padding:5px 14px">무료 플랜</span>
-          <span class="text-xs text-muted" style="margin-left:6px">가격 분석에서 제외됩니다</span>`;
-
-        row.appendChild(priceRow);
+        freeBadge.className = 'free-badge';
+        freeBadge.style.cssText = 'display:none;align-items:center;gap:8px;padding:4px 0';
+        freeBadge.innerHTML = `<span class="badge badge-green">무료 플랜</span><span style="font-size:0.74rem;color:var(--c-muted)">가격 분석에서 제외됩니다</span>`;
         row.appendChild(freeBadge);
+
         list.appendChild(row);
 
-        // 무료 체크박스 이벤트
-        row.querySelector(`.ob-free-check`)?.addEventListener('change', e => {
-          const isFree = e.target.checked;
-          priceState[svc.serviceId].isFree = isFree;
-          const priceRowEl = row.querySelector(`.ob-price-row-${svc.serviceId}`);
-          const badgeEl    = row.querySelector(`.ob-free-badge-${svc.serviceId}`);
-          const input      = row.querySelector('.ob-price-input');
-          if (isFree) {
-            priceRowEl.style.display = 'none';
-            badgeEl.style.display = 'flex';
-            badgeEl.style.alignItems = 'center';
-            input.value = '0';
-            row.style.borderColor = 'rgba(46,204,138,0.3)';
-          } else {
-            priceRowEl.style.display = 'flex';
-            badgeEl.style.display = 'none';
-            input.value = defaultKRW;
-            row.style.borderColor = 'var(--c-border)';
-          }
-        });
+        // 무료 체크박스
+        const chk = row.querySelector('.free-chk');
+        if (chk) {
+          chk.addEventListener('change', () => {
+            priceState[svc.serviceId].isFree = chk.checked;
+            const inp = row.querySelector('.price-inp');
+            if (chk.checked) {
+              priceWrap.style.display = 'none';
+              freeBadge.style.display = 'flex';
+              inp.value = '0';
+              row.style.borderColor = 'rgba(46,204,138,0.4)';
+            } else {
+              priceWrap.style.display = 'flex';
+              freeBadge.style.display = 'none';
+              inp.value = String(defaultKRW);
+              row.style.borderColor = 'var(--c-border)';
+            }
+          });
+        }
       });
 
-      wrap.querySelector('#ob-back').addEventListener('click', () => { step = 1; renderStep1(); });
-      wrap.querySelector('#ob-finish').addEventListener('click', () => {
+      // 안내
+      const hint = document.createElement('div');
+      hint.style.cssText = 'background:var(--c-surface2);border:1px dashed var(--c-border);border-radius:var(--r-md);padding:11px 14px;margin-bottom:20px;font-size:0.8rem;color:var(--c-muted)';
+      hint.innerHTML = '💡 추가로 구독 중인 서비스가 있다면 나중에 <strong style="color:var(--c-text)">구독 목록 → 구독 추가</strong>에서 더 넣을 수 있어요.';
+      wrap.appendChild(hint);
+
+      // 버튼
+      const btnWrap = document.createElement('div');
+      btnWrap.style.cssText = 'display:flex;gap:10px;justify-content:center';
+      btnWrap.innerHTML = `
+        <button class="btn btn-ghost btn-sm" id="ob2-back">← 다시 선택</button>
+        <button class="btn btn-primary" id="ob2-finish" style="padding:12px 28px;justify-content:center">분석 시작하기 🚀</button>`;
+      wrap.appendChild(btnWrap);
+
+      btnWrap.querySelector('#ob2-back').addEventListener('click', () => showStep1());
+
+      btnWrap.querySelector('#ob2-finish').addEventListener('click', () => {
         const state = global._appState;
         const today = AppDemoData.TODAY;
-        const inputs = wrap.querySelectorAll('.ob-price-input');
-        inputs.forEach(input => {
-          const svc = selectedServices.find(s => s.serviceId === input.dataset.id);
-          if (!svc) return;
+        const nextDate = new Date(new Date(today+'T00:00:00Z').getTime() + 30*86400000).toISOString().slice(0,10);
+
+        selected.forEach(svc => {
           const ps = priceState[svc.serviceId];
-          const price = ps.isFree ? 0 : (parseInt(input.value) || 0);
-          const dbInfo = AppServiceDB.autofill(svc.serviceId) || {};
+          const inp = list.querySelector(`[value]`); // fallback
+          // 해당 서비스의 가격 입력 필드 정확히 찾기
+          const rows = list.children;
+          let price = ps.isFree ? 0 : (ps.price);
+          // price-inp에서 실제 입력값 가져오기
+          for (const row of rows) {
+            const inp2 = row.querySelector('.price-inp');
+            if (inp2 && !ps.isFree) {
+              // 어떤 row인지 svc와 매칭 — 순서 기반
+              break;
+            }
+          }
+          // 정확한 방법: index 기반
+          const idx = selected.indexOf(svc);
+          const rowEl = list.children[idx];
+          if (rowEl) {
+            const inp3 = rowEl.querySelector('.price-inp');
+            if (inp3 && !ps.isFree) price = parseInt(inp3.value) || 0;
+          }
+
+          const dbInfo = AppServiceDB?.autofill(svc.serviceId) || {};
           state.subscriptions.push({
             id: 'sub_' + svc.serviceId + '_' + Date.now(),
-            serviceId: svc.serviceId,
-            planId: svc.serviceId + '_plan',
+            serviceId:   svc.serviceId,
+            planId:      svc.serviceId + '_plan',
             serviceName: svc.name,
-            planName: '기본',
+            planName:    ps.isFree ? '무료' : '기본',
             price,
-            currency: 'KRW',
+            currency:    'KRW',
             taxIncluded: true,
             billingCycle: 'monthly',
-            nextBillingDate: new Date(new Date(today+'T00:00:00Z').getTime() + 30*86400000).toISOString().slice(0,10),
+            nextBillingDate: nextDate,
             committedUntil: null,
             seats: 1,
-            category: svc.category,
+            category:    svc.category,
             capabilityTags: dbInfo.capabilityTags || [],
-            purpose: 'personal',
+            purpose:    'personal',
             importance: null,
             replacementDifficulty: null,
             collectible: true,
-            keepUntil: null,
-            createdAt: today,
-            updatedAt: today,
+            keepUntil:  null,
+            createdAt:  today,
+            updatedAt:  today,
           });
         });
         AppStore.save(state);
@@ -1990,8 +2036,7 @@
       });
     }
 
-    // Step 1부터 시작
-    renderStep1();
+    showStep1();
   });
 
   /* ══════════════════════════════════════════
