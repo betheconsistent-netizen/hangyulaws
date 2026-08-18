@@ -294,7 +294,9 @@
       }
     }
 
-    const avgDailyAdjustedSec = days > 0 ? totalAdjustedSec / days : 0;
+    // usedDays 기준 평균 (사용한 날만 카운트 — 0인 날 제외)
+    // 이렇게 하면 오늘 하루만 입력해도 그 값이 그대로 표시됨
+    const avgDailyAdjustedSec = usedDays > 0 ? totalAdjustedSec / usedDays : 0;
     const avgDailyAdjustedMin = avgDailyAdjustedSec / 60;
 
     // 마지막 사용일

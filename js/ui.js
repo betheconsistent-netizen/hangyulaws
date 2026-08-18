@@ -1994,8 +1994,8 @@
         const defaultKRW = svc.currency === 'USD'
           ? Math.round(svc.defaultPrice * USD_RATE)
           : svc.defaultPrice;
-        const dbInfo = AppServiceDB?.autofill(svc.serviceId) || {};
-        const hasFreePlan = svc.hasFreePlan === true;  // QUICK_SERVICES에서 직접
+        // 무료 플랜 체크박스: 모든 서비스에 표시 (사용자가 직접 선택)
+        const hasFreePlan = true;
 
         priceState[svc.serviceId] = { isFree: false, price: defaultKRW };
 
