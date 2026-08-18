@@ -52,7 +52,7 @@
     document.getElementById('header-title').textContent = {
       dashboard: '대시보드', subscriptions: '구독 목록', detail: '서비스 상세',
       insights: '인사이트 & 알림', portfolio: '구독 최적화 분석', settings: '설정',
-      calendar: '결제 캘린더',
+      calendar: '결제 캘린더', onboarding: '시작하기',
     }[view] || view;
 
     if (VIEWS[view]) VIEWS[view](container, resolvedParams);
@@ -457,9 +457,10 @@
           <div class="sub-actions" style="flex-direction:column;align-items:flex-end;gap:4px">
             <span class="badge ${rl==='유지'?'badge-green':rl==='해지 검토'?'badge-red':rl==='다운그레이드 검토'?'badge-yellow':'badge-gray'}">${rl}</span>
             <div style="display:flex;gap:4px">
-              <button class="btn btn-ghost btn-xs btn-snooze" data-id="${sub.id}">😴</button>
-              <button class="btn btn-ghost btn-xs btn-edit"   data-id="${sub.id}">✏️</button>
-              <button class="btn btn-danger btn-xs btn-del"   data-id="${sub.id}">🗑️</button>
+              <button class="btn btn-ghost btn-xs btn-usage"  data-id="${sub.id}" title="사용 시간 입력">⏱️</button>
+              <button class="btn btn-ghost btn-xs btn-snooze" data-id="${sub.id}" title="알림 스누즈">😴</button>
+              <button class="btn btn-ghost btn-xs btn-edit"   data-id="${sub.id}" title="수정">✏️</button>
+              <button class="btn btn-danger btn-xs btn-del"   data-id="${sub.id}" title="삭제">🗑️</button>
             </div>
           </div>`;
         card.addEventListener('click', e => {
@@ -471,6 +472,7 @@
       wrap.appendChild(ul);
 
       // 이벤트 바인딩
+      wrap.querySelectorAll('.btn-usage').forEach(btn => btn.addEventListener('click', () => openUsageModal(btn.dataset.id)));
       wrap.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', () => openSubModal(btn.dataset.id)));
       wrap.querySelectorAll('.btn-del').forEach(btn => btn.addEventListener('click', () => deleteSub(btn.dataset.id)));
       wrap.querySelectorAll('.btn-snooze').forEach(btn => btn.addEventListener('click', () => snoozeSub(btn.dataset.id)));
@@ -1185,6 +1187,39 @@
   registerView('settings', function (container) {
     const state = global._appState;
 
+    /* ── 트래킹 연결 가이드 (최상단) ── */
+    const trackSec = document.createElement('div');
+    trackSec.className = 'settings-section card';
+    trackSec.innerHTML = `
+      <div class="settings-title">📡 사용 시간 추적 연결하기</div>
+      <p class="text-sm text-muted" style="margin-bottom:16px;line-height:1.7">
+        구독 서비스를 얼마나 사용하는지 자동으로 측정하려면 아래 방법 중 하나를 선택하세요.<br>
+        연결하지 않아도 앱은 사용할 수 있지만, <strong style="color:var(--c-text)">정확한 Value Score 산출은 추적이 필요합니다.</strong>
+      </p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:20px">
+        <div style="background:var(--c-surface2);border:1px solid var(--c-border);border-radius:var(--r-md);padding:16px">
+          <div style="font-size:1.4rem;margin-bottom:8px">🌐</div>
+          <div style="font-size:0.88rem;font-weight:700;margin-bottom:5px">브라우저 확장 <span style="font-size:0.65rem;background:rgba(245,166,35,0.15);color:var(--c-yellow);border:1px solid rgba(245,166,35,0.3);padding:1px 7px;border-radius:10px">준비 중</span></div>
+          <div class="text-xs text-muted" style="line-height:1.6">Chrome/Edge 확장을 설치하면 웹 기반 서비스(ChatGPT, Notion 등)의 활성 탭 시간을 자동으로 측정합니다.</div>
+        </div>
+        <div style="background:var(--c-surface2);border:1px solid var(--c-border);border-radius:var(--r-md);padding:16px">
+          <div style="font-size:1.4rem;margin-bottom:8px">📱</div>
+          <div style="font-size:0.88rem;font-weight:700;margin-bottom:5px">모바일 앱 <span style="font-size:0.65rem;background:rgba(245,166,35,0.15);color:var(--c-yellow);border:1px solid rgba(245,166,35,0.3);padding:1px 7px;border-radius:10px">준비 중</span></div>
+          <div class="text-xs text-muted" style="line-height:1.6">iOS/Android 앱을 통해 Netflix, Spotify 등 모바일 앱 사용 시간을 추적합니다.</div>
+        </div>
+        <div style="background:var(--c-surface2);border:1px solid rgba(46,204,138,0.3);border-radius:var(--r-md);padding:16px">
+          <div style="font-size:1.4rem;margin-bottom:8px">✏️</div>
+          <div style="font-size:0.88rem;font-weight:700;margin-bottom:5px">수동 입력 <span style="font-size:0.65rem;background:rgba(46,204,138,0.15);color:var(--c-green);border:1px solid rgba(46,204,138,0.3);padding:1px 7px;border-radius:10px">지금 가능</span></div>
+          <div class="text-xs text-muted" style="line-height:1.6;margin-bottom:10px">구독 목록에서 오늘 사용한 시간을 직접 입력합니다. 자동 추적보다 정확도는 낮지만 바로 사용 가능합니다.</div>
+          <button class="btn btn-secondary btn-sm" onclick="AppUI.navigate('subscriptions')">구독 목록으로 이동 →</button>
+        </div>
+      </div>
+      <div style="background:rgba(91,127,255,0.06);border:1px solid rgba(91,127,255,0.15);border-radius:var(--r-sm);padding:10px 14px;font-size:0.78rem;color:var(--c-muted);line-height:1.6">
+        💡 <strong style="color:var(--c-text)">지금 당장은?</strong>
+        구독을 추가한 뒤 며칠간 수동으로 사용 시간을 기록하면, 2주 이상 쌓였을 때 Value Score가 자동으로 계산됩니다.
+      </div>`;
+    container.appendChild(trackSec);
+
     /* ── 기기 연결 시뮬레이션 ── */
     const devSec = document.createElement('div');
     devSec.className = 'settings-section card';
@@ -1338,6 +1373,108 @@
       }
     });
   });
+
+  /* ─── 수동 사용 시간 입력 모달 ─── */
+  function openUsageModal(subId) {
+    const state = global._appState;
+    const sub = state.subscriptions.find(s => s.id === subId);
+    if (!sub) return;
+    const TODAY = state.settings.today || AppDemoData.TODAY;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal" style="max-width:400px">
+        <div class="modal-header">
+          <span class="modal-title">${svcIcon(sub.serviceId)} ${sub.serviceName} — 사용 시간 입력</span>
+          <button class="modal-close" id="uc-close">✕</button>
+        </div>
+        <p class="text-sm text-muted" style="margin-bottom:16px;line-height:1.6">
+          오늘 이 서비스를 얼마나 사용하셨나요?<br>
+          입력한 값은 <strong style="color:var(--c-text)">self_reported</strong> 방식으로 기록되며 Value Score 계산에 반영됩니다.
+        </p>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div class="form-group" style="flex:1;margin:0">
+            <label class="form-label">시간 (h)</label>
+            <input class="form-input" id="uc-hours" type="number" min="0" max="23" value="0" style="text-align:center">
+          </div>
+          <div style="padding-top:20px;color:var(--c-muted);font-weight:700">:</div>
+          <div class="form-group" style="flex:1;margin:0">
+            <label class="form-label">분 (m)</label>
+            <input class="form-input" id="uc-mins" type="number" min="0" max="59" value="0" style="text-align:center">
+          </div>
+        </div>
+        <div id="uc-preview" class="text-xs text-muted" style="margin-bottom:16px;min-height:16px"></div>
+        <div class="form-actions">
+          <button class="btn btn-secondary" id="uc-cancel">취소</button>
+          <button class="btn btn-primary" id="uc-save">기록하기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const hoursInput = overlay.querySelector('#uc-hours');
+    const minsInput  = overlay.querySelector('#uc-mins');
+    const preview    = overlay.querySelector('#uc-preview');
+
+    function updatePreview() {
+      const h = parseInt(hoursInput.value) || 0;
+      const m = parseInt(minsInput.value) || 0;
+      const total = h * 60 + m;
+      if (total > 0) {
+        const monthly = AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle);
+        const costPerHour = total > 0 ? (monthly / (total / 60)).toFixed(0) : null;
+        preview.textContent = `총 ${total}분 · 오늘 시간당 비용 ₩${parseInt(costPerHour).toLocaleString()}`;
+      } else {
+        preview.textContent = '';
+      }
+    }
+    hoursInput.addEventListener('input', updatePreview);
+    minsInput.addEventListener('input', updatePreview);
+
+    overlay.querySelector('#uc-close').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#uc-cancel').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+    overlay.querySelector('#uc-save').addEventListener('click', () => {
+      const h = parseInt(hoursInput.value) || 0;
+      const m = parseInt(minsInput.value) || 0;
+      const totalSec = (h * 3600) + (m * 60);
+      if (totalSec <= 0) { alert('사용 시간을 입력해주세요.'); return; }
+
+      // self_reported 세션 생성
+      const startedAt = TODAY + 'T09:00:00Z';
+      const endedAt   = new Date(new Date(startedAt).getTime() + totalSec * 1000).toISOString().slice(0,16) + ':00Z';
+      const session = {
+        eventId: 'manual_' + sub.serviceId + '_' + Date.now(),
+        serviceId:   sub.serviceId,
+        planId:      sub.planId,
+        deviceId:    'manual',
+        platform:    'web_ext',
+        startedAt,
+        endedAt,
+        tzOffsetMinutes: 540,
+        activeSeconds: totalSec,
+        measurementMode: 'self_reported',
+        confidence: 0.5,
+      };
+      if (!state.sessions) state.sessions = [];
+      // 오늘 날짜의 기존 self_reported 세션 교체 (중복 방지)
+      state.sessions = state.sessions.filter(s =>
+        !(s.serviceId === sub.serviceId && s.measurementMode === 'self_reported' && s.startedAt.startsWith(TODAY))
+      );
+      state.sessions.push(session);
+      AppStore.save(state);
+      refreshApp();
+      overlay.remove();
+
+      // 완료 토스트
+      const toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--c-surface);border:1px solid var(--c-green);border-radius:var(--r-md);padding:10px 20px;font-size:0.85rem;box-shadow:var(--shadow-md);z-index:9999;color:var(--c-green)';
+      toast.textContent = `✅ ${sub.serviceName} ${h}시간 ${m}분 기록 완료`;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    });
+  }
 
   /* ─── OCR 결과 → 폼 자동 채우기 ─── */
   function applyOCRResult(overlay, result) {
