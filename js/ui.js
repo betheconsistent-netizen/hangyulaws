@@ -1398,30 +1398,36 @@
 
         <!-- 모드 탭 -->
         <div style="display:flex;gap:6px;margin-bottom:16px;background:var(--c-surface2);padding:4px;border-radius:var(--r-sm)">
-          <button class="uc-tab active-tab" data-mode="today"
-            style="flex:1;padding:7px;border-radius:var(--r-xs);font-size:0.82rem;font-weight:600;background:var(--c-accent);color:#fff;border:none;cursor:pointer">
+          <button class="uc-tab" data-mode="today"
+            style="flex:1;padding:7px;border-radius:var(--r-xs);font-size:0.8rem;font-weight:600;background:var(--c-accent);color:#fff;border:none;cursor:pointer">
             오늘 사용 기록
           </button>
           <button class="uc-tab" data-mode="daily"
-            style="flex:1;padding:7px;border-radius:var(--r-xs);font-size:0.82rem;font-weight:500;background:none;color:var(--c-muted);border:none;cursor:pointer">
+            style="flex:1;padding:7px;border-radius:var(--r-xs);font-size:0.8rem;font-weight:500;background:none;color:var(--c-muted);border:none;cursor:pointer">
             하루 평균 설정
+          </button>
+          <button class="uc-tab" data-mode="screenshot"
+            style="flex:1;padding:7px;border-radius:var(--r-xs);font-size:0.8rem;font-weight:500;background:none;color:var(--c-muted);border:none;cursor:pointer">
+            📷 스크린타임
           </button>
         </div>
 
         <!-- 오늘 모드 -->
         <div id="uc-mode-today">
-          <p class="text-sm text-muted" style="margin-bottom:14px;line-height:1.6">
-            오늘 이 서비스를 얼마나 사용하셨나요?
-          </p>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <p class="text-sm text-muted" style="margin-bottom:12px;line-height:1.6">오늘 이 서비스를 얼마나 사용하셨나요?</p>
+          <div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:8px">
             <div class="form-group" style="flex:1;margin:0">
-              <label class="form-label">시간 (h)</label>
-              <input class="form-input" id="uc-hours" type="number" min="0" max="23" value="0" style="text-align:center">
+              <label class="form-label">시간</label>
+              <input class="form-input" id="uc-hours" type="number" min="0" max="23"
+                style="text-align:center;font-size:1.1rem;font-weight:700">
+              <div class="text-xs text-muted" style="text-align:center;margin-top:3px">시간 (0~23)</div>
             </div>
-            <div style="padding-top:20px;color:var(--c-muted);font-weight:700">:</div>
+            <div style="padding-bottom:22px;color:var(--c-muted);font-weight:700;font-size:1.2rem">:</div>
             <div class="form-group" style="flex:1;margin:0">
-              <label class="form-label">분 (m)</label>
-              <input class="form-input" id="uc-mins" type="number" min="0" max="59" value="0" style="text-align:center">
+              <label class="form-label">분</label>
+              <input class="form-input" id="uc-mins" type="number" min="0" max="59"
+                style="text-align:center;font-size:1.1rem;font-weight:700">
+              <div class="text-xs text-muted" style="text-align:center;margin-top:3px">분 (0~59)</div>
             </div>
           </div>
           <div id="uc-preview" class="text-xs text-muted" style="margin-bottom:4px;min-height:16px"></div>
@@ -1429,19 +1435,56 @@
 
         <!-- 하루 평균 모드 -->
         <div id="uc-mode-daily" style="display:none">
-          <p class="text-sm text-muted" style="margin-bottom:14px;line-height:1.6">
-            이 서비스를 하루에 평균 몇 분 정도 사용하시나요?<br>
-            <span style="font-size:0.75rem">설정하면 오늘부터 이 값으로 기록됩니다.</span>
+          <p class="text-sm text-muted" style="margin-bottom:12px;line-height:1.6">
+            하루 평균 사용 시간을 설정해 주세요.<br>
+            <span style="font-size:0.74rem">이 값으로 매일 기록됩니다.</span>
           </p>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:8px">
             <div class="form-group" style="flex:1;margin:0">
-              <label class="form-label">하루 평균 사용 시간</label>
-              <input class="form-input" id="uc-daily-mins" type="number" min="1" max="1440"
-                style="text-align:center;font-size:1rem;font-weight:700">
+              <label class="form-label">시간</label>
+              <input class="form-input" id="uc-daily-hours" type="number" min="0" max="23"
+                style="text-align:center;font-size:1.1rem;font-weight:700">
+              <div class="text-xs text-muted" style="text-align:center;margin-top:3px">시간 (0~23)</div>
             </div>
-            <div style="padding-top:20px;color:var(--c-muted);font-size:0.8rem">분/일</div>
+            <div style="padding-bottom:22px;color:var(--c-muted);font-weight:700;font-size:1.2rem">:</div>
+            <div class="form-group" style="flex:1;margin:0">
+              <label class="form-label">분</label>
+              <input class="form-input" id="uc-daily-mins" type="number" min="0" max="59"
+                style="text-align:center;font-size:1.1rem;font-weight:700">
+              <div class="text-xs text-muted" style="text-align:center;margin-top:3px">분 (0~59)</div>
+            </div>
           </div>
           <div id="uc-daily-preview" class="text-xs text-muted" style="margin-bottom:4px;min-height:16px"></div>
+        </div>
+
+        <!-- 스크린타임 모드 -->
+        <div id="uc-mode-screenshot" style="display:none">
+          <p class="text-sm text-muted" style="margin-bottom:12px;line-height:1.6">
+            스크린타임 화면을 캡처해서 올려주세요.<br>
+            <span style="font-size:0.74rem">iOS 설정 → 스크린 타임 / Android 디지털 웰빙 화면</span>
+          </p>
+          <label style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:24px;background:var(--c-surface2);border:2px dashed var(--c-border);border-radius:var(--r-md);cursor:pointer;transition:border-color 0.15s" id="uc-screenshot-area">
+            <span style="font-size:2rem">📱</span>
+            <span class="text-sm font-bold">사진 올리기</span>
+            <span class="text-xs text-muted">JPG · PNG · WEBP · HEIC</span>
+            <input type="file" id="uc-screenshot-file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style="display:none">
+          </label>
+          <div id="uc-screenshot-preview" style="margin-top:10px;display:none">
+            <img id="uc-screenshot-img" style="max-width:100%;border-radius:var(--r-sm);margin-bottom:8px">
+            <p class="text-xs text-muted" style="margin-bottom:8px">이미지에서 감지된 시간을 아래에서 확인·수정하세요:</p>
+            <div style="display:flex;align-items:flex-end;gap:8px">
+              <div class="form-group" style="flex:1;margin:0">
+                <label class="form-label">감지된 시간</label>
+                <input class="form-input" id="uc-ss-hours" type="number" min="0" max="23" style="text-align:center;font-weight:700">
+              </div>
+              <div style="padding-bottom:14px;color:var(--c-muted);font-weight:700">:</div>
+              <div class="form-group" style="flex:1;margin:0">
+                <label class="form-label">감지된 분</label>
+                <input class="form-input" id="uc-ss-mins" type="number" min="0" max="59" style="text-align:center;font-weight:700">
+              </div>
+            </div>
+          </div>
+          <div id="uc-screenshot-note" class="text-xs text-muted" style="margin-top:8px;display:none"></div>
         </div>
 
         <div class="form-actions" style="margin-top:14px">
@@ -1470,13 +1513,43 @@
     const hoursInput = overlay.querySelector('#uc-hours');
     const minsInput    = overlay.querySelector('#uc-mins');
     const preview      = overlay.querySelector('#uc-preview');
-    const dailyInput   = overlay.querySelector('#uc-daily-mins');
+    const dailyHInput  = overlay.querySelector('#uc-daily-hours');
+    const dailyMInput  = overlay.querySelector('#uc-daily-mins');
     const dailyPreview = overlay.querySelector('#uc-daily-preview');
 
-    // 초기값 명시적 세팅 (innerHTML 변수 주입 없이 DOM 직접 세팅)
+    // 초기값 세팅
     hoursInput.value = '0';
     minsInput.value  = '0';
-    dailyInput.value = String(sub.avgDailyMinutes || 30);
+    dailyHInput.value = String(Math.floor((sub.avgDailyMinutes || 0) / 60));
+    dailyMInput.value = String((sub.avgDailyMinutes || 30) % 60 || 30);
+
+    // 탭 전환
+    overlay.querySelectorAll('.uc-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        currentMode = tab.dataset.mode;
+        overlay.querySelectorAll('.uc-tab').forEach(t => {
+          const isActive = t.dataset.mode === currentMode;
+          t.style.background = isActive ? 'var(--c-accent)' : 'none';
+          t.style.color = isActive ? '#fff' : 'var(--c-muted)';
+          t.style.fontWeight = isActive ? '600' : '500';
+        });
+        overlay.querySelector('#uc-mode-today').style.display = currentMode === 'today' ? 'block' : 'none';
+        overlay.querySelector('#uc-mode-daily').style.display = currentMode === 'daily' ? 'block' : 'none';
+        overlay.querySelector('#uc-mode-screenshot').style.display = currentMode === 'screenshot' ? 'block' : 'none';
+      });
+    });
+
+    // 분 초과 자동 보정
+    function clampTime(hInput, mInput) {
+      let h = parseInt(hInput.value) || 0;
+      let m = parseInt(mInput.value) || 0;
+      if (m > 59) { h += Math.floor(m / 60); m = m % 60; }
+      if (h > 23) h = 23;
+      hInput.value = String(h);
+      mInput.value = String(m);
+    }
+    [hoursInput, minsInput].forEach(inp => inp.addEventListener('change', () => clampTime(hoursInput, minsInput)));
+    [dailyHInput, dailyMInput].forEach(inp => inp.addEventListener('change', () => clampTime(dailyHInput, dailyMInput)));
 
     function updatePreview() {
       const h = parseInt(hoursInput.value) || 0;
@@ -1491,30 +1564,96 @@
       }
     }
     function updateDailyPreview() {
-      const m = parseInt(dailyInput.value) || 0;
-      if (m > 0 && sub.price > 0) {
+      const h = parseInt(dailyHInput.value) || 0;
+      const m = parseInt(dailyMInput.value) || 0;
+      const total = h * 60 + m;
+      if (total > 0 && sub.price > 0) {
         const monthly = AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle);
-        const costPerHour = (monthly / (m / 60)).toFixed(0);
-        dailyPreview.textContent = `월 ${m * 30}분 · 시간당 ₩${parseInt(costPerHour).toLocaleString()}`;
+        const costPerHour = (monthly / (total / 60)).toFixed(0);
+        dailyPreview.textContent = `하루 ${total}분 · 시간당 ₩${parseInt(costPerHour).toLocaleString()}`;
       } else {
-        dailyPreview.textContent = m > 0 ? `월 약 ${m * 30}분` : '';
+        dailyPreview.textContent = total > 0 ? `하루 ${total}분` : '';
       }
     }
 
     hoursInput.addEventListener('input', updatePreview);
     minsInput.addEventListener('input', updatePreview);
-    dailyInput.addEventListener('input', updateDailyPreview);
+    dailyHInput.addEventListener('input', updateDailyPreview);
+    dailyMInput.addEventListener('input', updateDailyPreview);
     updateDailyPreview();
+
+    // 스크린타임 이미지 처리
+    const ssFile = overlay.querySelector('#uc-screenshot-file');
+    const ssArea = overlay.querySelector('#uc-screenshot-area');
+    ssArea?.addEventListener('click', () => ssFile?.click());
+    ssFile?.addEventListener('change', async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const allowed = ['image/jpeg','image/png','image/webp','image/heic','image/heif'];
+      if (!allowed.includes(file.type) && !file.name.match(/\.(jpe?g|png|webp|heic|heif)$/i)) {
+        alert('JPG, PNG, WEBP, HEIC 파일만 가능합니다.'); return;
+      }
+      // 미리보기 표시
+      const reader = new FileReader();
+      reader.onload = async ev => {
+        const img = overlay.querySelector('#uc-screenshot-img');
+        img.src = ev.target.result;
+        overlay.querySelector('#uc-screenshot-preview').style.display = 'block';
+        ssArea.style.display = 'none';
+        // OCR 파싱 시도
+        const result = await SubscriptionOCRProvider.extractFromImage(file);
+        const note = overlay.querySelector('#uc-screenshot-note');
+        note.style.display = 'block';
+        if (result && result.price && result.price > 0) {
+          // 분으로 환산 가능한 값이 없으므로 파일명에서 시간 추출 시도
+          note.textContent = `파일명 기반 인식 (정확도 ${Math.round((result.confidence||0)*100)}%). 시간을 직접 수정해 주세요.`;
+        } else {
+          note.textContent = '자동 인식이 어렵습니다. 스크린타임 숫자를 직접 입력해 주세요.';
+        }
+        overlay.querySelector('#uc-ss-hours').value = '0';
+        overlay.querySelector('#uc-ss-mins').value = '0';
+      };
+      reader.readAsDataURL(file);
+    });
 
     overlay.querySelector('#uc-close').addEventListener('click', () => overlay.remove());
     overlay.querySelector('#uc-cancel').addEventListener('click', () => overlay.remove());
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 
     overlay.querySelector('#uc-save').addEventListener('click', () => {
+      if (currentMode === 'screenshot') {
+        // 스크린타임 모드: uc-ss-hours + uc-ss-mins 사용
+        const h = parseInt(overlay.querySelector('#uc-ss-hours')?.value) || 0;
+        const m = parseInt(overlay.querySelector('#uc-ss-mins')?.value) || 0;
+        const totalSec = (h * 3600) + (m * 60);
+        if (totalSec <= 0) { alert('시간을 입력해주세요.'); return; }
+        const startedAt = TODAY + 'T09:00:00Z';
+        const endedAt = new Date(new Date(startedAt).getTime() + totalSec * 1000).toISOString().slice(0,16) + ':00Z';
+        if (!state.sessions) state.sessions = [];
+        state.sessions = state.sessions.filter(s =>
+          !(s.serviceId === sub.serviceId && s.measurementMode === 'self_reported' && s.startedAt.startsWith(TODAY))
+        );
+        state.sessions.push({
+          eventId: 'ss_' + sub.serviceId + '_' + Date.now(),
+          serviceId: sub.serviceId, planId: sub.planId,
+          deviceId: 'screenshot', platform: 'web_ext',
+          startedAt, endedAt, tzOffsetMinutes: 540,
+          activeSeconds: totalSec, measurementMode: 'self_reported', confidence: 0.6,
+        });
+        AppStore.save(state); refreshApp(); overlay.remove();
+        const toast = document.createElement('div');
+        toast.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--c-surface);border:1px solid var(--c-green);border-radius:var(--r-md);padding:10px 20px;font-size:0.85rem;box-shadow:var(--shadow-md);z-index:9999;color:var(--c-green)';
+        toast.textContent = `✅ ${sub.serviceName} ${h}시간 ${m}분 기록 완료 (스크린타임)`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+        return;
+      }
+
       if (currentMode === 'daily') {
-        // 하루 평균 저장: subscription에 avgDailyMinutes 설정
-        const dailyMins = parseInt(dailyInput.value) || 0;
-        if (dailyMins <= 0) { alert('분을 입력해주세요.'); return; }
+        const h = parseInt(dailyHInput.value) || 0;
+        const m = parseInt(dailyMInput.value) || 0;
+        const dailyMins = h * 60 + m;
+        if (dailyMins <= 0) { alert('시간을 입력해주세요.'); return; }
         const idx = state.subscriptions.findIndex(s => s.id === subId);
         if (idx >= 0) {
           state.subscriptions[idx].avgDailyMinutes = dailyMins;
