@@ -1084,13 +1084,13 @@
       </p>`;
     container.appendChild(cta);
 
-    // 데모: 잠금 해제 버튼 → 안내 토스트
+    // 데모: 잠금 해제 버튼 → 데모 모드로 전체 분석 뷰 바로 열기
     container.querySelector('#btn-premium-unlock')?.addEventListener('click', () => {
-      const toast = document.createElement('div');
-      toast.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);padding:12px 24px;font-size:0.85rem;box-shadow:var(--shadow-lg);z-index:9999;animation:fadeIn 0.2s ease';
-      toast.textContent = '🚀 결제 기능은 현재 준비 중입니다. 곧 만나요!';
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 3000);
+      if (!global._appState) return;
+      // 데모에서는 premium 플래그를 임시로 세팅해서 전체 뷰 표시
+      global._appState.settings.premium = true;
+      container.innerHTML = '';
+      renderPortfolioFull(container, global._appState, global._computed);
     });
   }
 
