@@ -1473,7 +1473,9 @@
     const dailyInput   = overlay.querySelector('#uc-daily-mins');
     const dailyPreview = overlay.querySelector('#uc-daily-preview');
 
-    // innerHTML에 변수를 직접 삽입하지 않으므로 DOM append 후 명시적으로 값 세팅
+    // 초기값 명시적 세팅 (innerHTML 변수 주입 없이 DOM 직접 세팅)
+    hoursInput.value = '0';
+    minsInput.value  = '0';
     dailyInput.value = String(sub.avgDailyMinutes || 30);
 
     function updatePreview() {
