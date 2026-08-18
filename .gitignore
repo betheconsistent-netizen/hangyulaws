@@ -1,0 +1,12 @@
+# 테스트 파일
+*.cjs
+test_*.html
+test_*.js
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 에디터
+.vscode/
+*.swp
