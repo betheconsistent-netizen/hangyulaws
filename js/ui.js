@@ -278,7 +278,6 @@
     const applyLayout = () => { twoCol.style.gridTemplateColumns = mq.matches ? '1fr' : '1fr 320px'; };
     applyLayout();
     mq.addEventListener('change', applyLayout);
-    }
 
     container.querySelector('#btn-goto-subs')?.addEventListener('click', () => navigate('subscriptions'));
   });
@@ -1392,16 +1391,6 @@
                 <span style="width:10px;height:10px;border-radius:2px;border:1.5px solid ${stroke};display:inline-block"></span>${v}
               </span>`).join('')}
         </div>`;
-
-      // CATEGORY_COLORS를 클로저에서 참조할 수 없으므로 인라인으로 재정의
-      const CATEGORY_COLORS = {
-        ai:           { fill: '#1e2a3a', stroke: '#6c8fff' },
-        design:       { fill: '#2a1e3a', stroke: '#a78bfa' },
-        productivity: { fill: '#1e3a2a', stroke: '#34d399' },
-        media:        { fill: '#3a1e1e', stroke: '#f87171' },
-        dev:          { fill: '#1e3030', stroke: '#2dd4bf' },
-        other:        { fill: '#2a2a1e', stroke: '#fbbf24' },
-      };
       container.appendChild(legendCard);
     }
 
