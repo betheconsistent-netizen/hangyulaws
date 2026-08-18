@@ -4,49 +4,51 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SubValue ??援щ룆 媛移?遺꾩꽍</title>
+  <title>SubValue — 구독 가치 분석</title>
   <link rel="stylesheet" href="styles.css">
-  <meta name="description" content="援щ룆 ?쒕퉬??媛移?遺꾩꽍 諛?愿由??뱀빋">
+  <meta name="description" content="구독 서비스 가치 분석 및 관리 웹앱">
 </head>
 <body>
 
 <div id="app-shell">
 
-  <!-- ?? ?ъ씠?쒕컮 ?? -->
-  <nav id="sidebar" role="navigation" aria-label="二?硫붾돱">
+  <!-- ── 사이드바 ── -->
+  <nav id="sidebar" role="navigation" aria-label="주 메뉴">
     <div class="sidebar-logo">
-      <h1>?뱤 SubValue</h1>
-      <p>援щ룆 媛移?遺꾩꽍</p>
+      <h1>📊 SubValue</h1>
+      <p>구독 가치 분석</p>
     </div>
     <div class="sidebar-nav">
-      <button class="nav-item active" data-view="dashboard"      aria-label="??쒕낫??>
-        <span class="nav-icon">?룧</span> ??쒕낫??      </button>
-      <button class="nav-item" data-view="subscriptions"         aria-label="援щ룆 紐⑸줉">
-        <span class="nav-icon">?뱥</span> 援щ룆 紐⑸줉
+      <button class="nav-item active" data-view="dashboard"   aria-label="대시보드">
+        <span class="nav-icon">🏠</span> 대시보드
       </button>
-      <button class="nav-item" data-view="portfolio"             aria-label="援щ룆 理쒖쟻??遺꾩꽍">
-        <span class="nav-icon">?뱤</span> 援щ룆 理쒖쟻??遺꾩꽍
+      <button class="nav-item" data-view="subscriptions"      aria-label="구독 목록">
+        <span class="nav-icon">📋</span> 구독 목록
       </button>
-      <button class="nav-item" data-view="calendar"              aria-label="寃곗젣 罹섎┛??>
-        <span class="nav-icon">?뿎截?/span> 寃곗젣 罹섎┛??      </button>
-      <button class="nav-item" data-view="insights"              aria-label="?몄궗?댄듃 & ?뚮┝">
-        <span class="nav-icon">?뵒</span> ?몄궗?댄듃 & ?뚮┝
+      <button class="nav-item" data-view="portfolio"          aria-label="구독 최적화 분석">
+        <span class="nav-icon">📊</span> 구독 최적화 분석
+      </button>
+      <button class="nav-item" data-view="calendar"           aria-label="결제 캘린더">
+        <span class="nav-icon">🗓️</span> 결제 캘린더
+      </button>
+      <button class="nav-item" data-view="insights"           aria-label="인사이트 & 알림">
+        <span class="nav-icon">🔔</span> 인사이트 & 알림
         <span class="nav-badge" id="notif-badge" style="display:none">0</span>
       </button>
-      <button class="nav-item" data-view="settings"              aria-label="?ㅼ젙">
-        <span class="nav-icon">?숋툘</span> ?ㅼ젙
+      <button class="nav-item" data-view="settings"           aria-label="설정">
+        <span class="nav-icon">⚙️</span> 설정
       </button>
     </div>
   </nav>
 
-  <!-- 紐⑤컮???ㅻ쾭?덉씠 -->
+  <!-- 모바일 오버레이 -->
   <div id="sidebar-overlay"></div>
 
-  <!-- ?? 硫붿씤 ?? -->
+  <!-- ── 메인 ── -->
   <div id="main-content">
     <header id="app-header" role="banner">
-      <button id="sidebar-toggle" aria-label="硫붾돱 ?닿린/?リ린">??/button>
-      <span id="header-title" class="header-title">??쒕낫??/span>
+      <button id="sidebar-toggle" aria-label="메뉴 열기/닫기">☰</button>
+      <span id="header-title" class="header-title">대시보드</span>
       <div class="header-actions">
         <span class="badge badge-gray text-xs">v1.10</span>
       </div>
@@ -55,14 +57,14 @@
     <main id="view-container" role="main" aria-live="polite">
       <div class="empty-state">
         <div class="empty-icon"><span class="spinner"></span></div>
-        <p>濡쒕뵫 以묅?/p>
+        <p>로딩 중…</p>
       </div>
     </main>
   </div>
 
 </div><!-- #app-shell -->
 
-<!-- ?? JS 濡쒕뱶 ?쒖꽌: ?섏〈?????? -->
+<!-- ── JS 로드 순서: 의존성 순 ── -->
 <script src="js/config.js?v=110"></script>
 <script src="js/store.js?v=110"></script>
 <script src="js/demo-data.js?v=110"></script>
@@ -86,10 +88,10 @@
     try {
       AppUI.initApp();
     } catch (err) {
-      console.error('[App] 珥덇린???ㅻ쪟:', err);
+      console.error('[App] 초기화 오류:', err);
       document.getElementById('view-container').innerHTML =
-        '<div class="empty-state"><div class="empty-icon">?좑툘</div>' +
-        '<p>??珥덇린??以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.<br>' +
+        '<div class="empty-state"><div class="empty-icon">⚠️</div>' +
+        '<p>앱 초기화 중 오류가 발생했습니다.<br>' +
         '<span class="text-xs text-muted">' + err.message + '</span></p></div>';
     }
   });
