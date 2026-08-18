@@ -1,22 +1,10 @@
-﻿<!-- SubValue v1.22 built:202608190030 -->
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SubValue — 구독 가치 분석</title>
+  <title>SubValue</title>
   <link rel="stylesheet" href="styles.css?t=202608190030">
-  <meta name="description" content="구독 서비스 가치 분석 및 관리 웹앱">
-  <script>
-    // 랜딩 경유 여부 확인 — 직접 접근 시 랜딩으로 리다이렉트
-    (function () {
-      var ok = sessionStorage.getItem('subvalue_from_landing') || sessionStorage.getItem('subvalue_fresh');
-      if (!ok) {
-        var p = window.location.pathname.replace(/\/app\.html$/, '/');
-        window.location.replace(p + 'index.html');
-      }
-    })();
-  </script>
 </head>
 <body>
 <div id="app-shell">
@@ -49,7 +37,6 @@
     </main>
   </div>
 </div>
-
 <script src="js/config.js?t=202608190030"></script>
 <script src="js/store.js?t=202608190030"></script>
 <script src="js/demo-data.js?t=202608190030"></script>
@@ -67,18 +54,22 @@
 <script src="js/ocr.js?t=202608190030"></script>
 <script src="js/charts.js?t=202608190030"></script>
 <script src="js/ui.js?t=202608190030"></script>
-
 <script>
-  document.addEventListener('DOMContentLoaded', function () {
-    try { AppUI.initApp(); }
-    catch (err) {
-      console.error('[App] 초기화 오류:', err);
-      document.getElementById('view-container').innerHTML =
-        '<div class="empty-state"><div class="empty-icon">⚠️</div>' +
-        '<p>앱 초기화 중 오류가 발생했습니다.<br>' +
-        '<span class="text-xs text-muted">' + err.message + '</span></p></div>';
-    }
-  });
+document.addEventListener('DOMContentLoaded', function () {
+  // 랜딩 경유 여부 확인
+  var ok = sessionStorage.getItem('subvalue_from_landing') || sessionStorage.getItem('subvalue_fresh');
+  if (!ok) {
+    var p = window.location.pathname.replace(/\/app\.html$/, '/');
+    window.location.replace(p + 'index.html');
+    return;
+  }
+  try { AppUI.initApp(); }
+  catch (err) {
+    console.error('[App]', err);
+    document.getElementById('view-container').innerHTML =
+      '<div class="empty-state"><div class="empty-icon">⚠️</div><p>초기화 오류: ' + err.message + '</p></div>';
+  }
+});
 </script>
 </body>
 </html>
