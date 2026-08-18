@@ -17,13 +17,13 @@
    */
   const SERVICE_DB = [
     // ── AI 도구 ──
-    { ids: ['chatgpt','gpt','openai'],        name: 'ChatGPT',        category: 'ai',           tags: ['chat','research','image','code','writing','analysis'], importanceHint: 4, replacementHint: 3 },
-    { ids: ['claude','anthropic'],             name: 'Claude',          category: 'ai',           tags: ['chat','research','code','writing','analysis'],          importanceHint: 3, replacementHint: 3 },
-    { ids: ['perplexity'],                     name: 'Perplexity',      category: 'ai',           tags: ['chat','research','web_search'],                         importanceHint: 3, replacementHint: 2 },
-    { ids: ['gemini','bard'],                  name: 'Gemini',          category: 'ai',           tags: ['chat','research','image','code','writing'],             importanceHint: 3, replacementHint: 3 },
-    { ids: ['copilot','github_copilot'],       name: 'GitHub Copilot',  category: 'dev',          tags: ['code','ai_autocomplete'],                              importanceHint: 5, replacementHint: 4 },
-    { ids: ['midjourney'],                     name: 'Midjourney',      category: 'design',       tags: ['image','ai_image'],                                    importanceHint: 3, replacementHint: 3 },
-    { ids: ['stability','stable_diffusion'],   name: 'Stability AI',    category: 'ai',           tags: ['image','ai_image'],                                    importanceHint: 2, replacementHint: 2 },
+    { ids: ['chatgpt','gpt','openai'],        name: 'ChatGPT',        category: 'ai',           tags: ['chat','research','image','code','writing','analysis'], importanceHint: 4, replacementHint: 3, hasFreePlan: true },
+    { ids: ['claude','anthropic'],             name: 'Claude',          category: 'ai',           tags: ['chat','research','code','writing','analysis'],          importanceHint: 3, replacementHint: 3, hasFreePlan: true },
+    { ids: ['perplexity'],                     name: 'Perplexity',      category: 'ai',           tags: ['chat','research','web_search'],                         importanceHint: 3, replacementHint: 2, hasFreePlan: true },
+    { ids: ['gemini','bard'],                  name: 'Gemini',          category: 'ai',           tags: ['chat','research','image','code','writing'],             importanceHint: 3, replacementHint: 3, hasFreePlan: true },
+    { ids: ['copilot','github_copilot'],       name: 'GitHub Copilot',  category: 'dev',          tags: ['code','ai_autocomplete'],                              importanceHint: 5, replacementHint: 4, hasFreePlan: false },
+    { ids: ['midjourney'],                     name: 'Midjourney',      category: 'design',       tags: ['image','ai_image'],                                    importanceHint: 3, replacementHint: 3, hasFreePlan: false },
+    { ids: ['stability','stable_diffusion'],   name: 'Stability AI',    category: 'ai',           tags: ['image','ai_image'],                                    importanceHint: 2, replacementHint: 2, hasFreePlan: true },
 
     // ── 개발 ──
     { ids: ['cursor'],                         name: 'Cursor',          category: 'dev',          tags: ['code','ai_autocomplete','chat'],                        importanceHint: 5, replacementHint: 4 },
@@ -135,6 +135,7 @@
       capabilityTags:       entry.tags,
       importanceHint:       entry.importanceHint,
       replacementHint:      entry.replacementHint,
+      hasFreePlan:          entry.hasFreePlan || false,
       suggestedServiceId:   entry.ids[0],
     };
   }

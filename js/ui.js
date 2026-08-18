@@ -25,7 +25,10 @@
       ${label}
     </span>`;
   }
-  function krw(n) { return '₩' + Math.round(n).toLocaleString(); }
+  function krw(n) {
+    if (n === 0) return '무료';
+    return '₩' + Math.round(n).toLocaleString();
+  }
   function fmtMin(min) {
     if (min === null || min === undefined) return '측정 안 됨';
     if (min >= 60) return Math.round(min / 60) + 'h ' + (Math.round(min) % 60) + 'm';
@@ -1084,10 +1087,9 @@
       </p>`;
     container.appendChild(cta);
 
-    // 데모: 잠금 해제 버튼 → 데모 모드로 전체 분석 뷰 바로 열기
-    container.querySelector('#btn-premium-unlock')?.addEventListener('click', () => {
+    // 잠금 해제 버튼 — cta 내부에서 직접 바인딩
+    cta.querySelector('#btn-premium-unlock').addEventListener('click', () => {
       if (!global._appState) return;
-      // 데모에서는 premium 플래그를 임시로 세팅해서 전체 뷰 표시
       global._appState.settings.premium = true;
       container.innerHTML = '';
       renderPortfolioFull(container, global._appState, global._computed);
@@ -1551,13 +1553,17 @@
               <div style="display:flex;gap:6px">
                 <input class="form-input" name="priceRaw" type="number" required
                   value="${existing?.currency==='USD' ? (existing.price/1500).toFixed(2) : (existing?.price||'')}"
-                  placeholder="금액" style="flex:1" id="price-raw-input">
+                  placeholder="금액 (0 = 무료)" style="flex:1" id="price-raw-input" min="0">
                 <select class="form-select" name="currency" id="currency-select" style="width:80px">
                   <option value="KRW" ${(!existing||existing.currency==='KRW')?'selected':''}>KRW</option>
                   <option value="USD" ${existing?.currency==='USD'?'selected':''}>USD</option>
                 </select>
               </div>
               <div id="price-preview" class="text-xs text-muted" style="margin-top:4px"></div>
+              <label style="display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer;font-size:0.78rem;color:var(--c-muted)">
+                <input type="checkbox" id="free-plan-check" ${existing?.price===0?'checked':''}>
+                무료 플랜으로 등록 (가격 0원)
+              </label>
             </div>
             <div class="form-group">
               <label class="form-label">결제 주기</label>
@@ -1628,12 +1634,32 @@
       const raw = parseFloat(overlay.querySelector('#price-raw-input')?.value) || 0;
       const cur = overlay.querySelector('#currency-select')?.value;
       const preview = overlay.querySelector('#price-preview');
-      if (!preview || !raw) { if (preview) preview.textContent = ''; return; }
+      const isFree = overlay.querySelector('#free-plan-check')?.checked;
+      if (!preview) return;
+      if (isFree) { preview.textContent = '무료 플랜 — 가격 분석에서 제외됩니다'; preview.style.color = 'var(--c-green)'; return; }
+      if (!raw) { preview.textContent = ''; return; }
       if (cur === 'USD') {
         preview.textContent = `= ₩${Math.round(raw * USD_RATE).toLocaleString()} (1달러 = 1,500원 기준)`;
       } else {
         preview.textContent = `≈ $${(raw / USD_RATE).toFixed(2)}`;
       }
+      preview.style.color = '';
+    }
+    // 무료 플랜 체크 시 가격 입력 비활성화
+    overlay.querySelector('#free-plan-check')?.addEventListener('change', e => {
+      const priceInput = overlay.querySelector('#price-raw-input');
+      const currSelect = overlay.querySelector('#currency-select');
+      if (e.target.checked) {
+        priceInput.value = '0'; priceInput.disabled = true; currSelect.disabled = true;
+      } else {
+        priceInput.value = ''; priceInput.disabled = false; currSelect.disabled = false;
+      }
+      updatePricePreview();
+    });
+    // 초기 상태 적용
+    if (existing?.price === 0) {
+      overlay.querySelector('#price-raw-input').disabled = true;
+      overlay.querySelector('#currency-select').disabled = true;
     }
     overlay.querySelector('#price-raw-input')?.addEventListener('input', updatePricePreview);
     overlay.querySelector('#currency-select')?.addEventListener('change', updatePricePreview);
@@ -1660,9 +1686,10 @@
       const fd = new FormData(e.target);
       const now = new Date().toISOString().slice(0, 10);
       const USD_RATE = 1500;
-      const rawPrice = parseFloat(fd.get('priceRaw')) || 0;
+      const isFree   = overlay.querySelector('#free-plan-check')?.checked;
+      const rawPrice = isFree ? 0 : (parseFloat(fd.get('priceRaw')) || 0);
       const currency = fd.get('currency') || 'KRW';
-      const priceKRW = currency === 'USD' ? Math.round(rawPrice * USD_RATE) : Math.round(rawPrice);
+      const priceKRW = isFree ? 0 : (currency === 'USD' ? Math.round(rawPrice * USD_RATE) : Math.round(rawPrice));
       const data = {
         id:                  existing?.id || ('sub_' + Date.now()),
         serviceId:           existing?.serviceId || fd.get('serviceName').toLowerCase().replace(/\s+/g, '_'),
@@ -1764,9 +1791,14 @@
       // 클라우드
       { serviceId:'icloud',     name:'iCloud+',        icon:'☁️', category:'cloud',       defaultPrice:1200,   currency:'KRW' },
       { serviceId:'google_one', name:'Google One',     icon:'🗄️', category:'cloud',       defaultPrice:2400,   currency:'KRW' },
+      // 무료 플랜
+      { serviceId:'notion_free',  name:'Notion (무료)',  icon:'📝', category:'productivity', defaultPrice:0, currency:'KRW' },
+      { serviceId:'figma_free',   name:'Figma (무료)',   icon:'🎨', category:'design',       defaultPrice:0, currency:'KRW' },
+      { serviceId:'canva_free',   name:'Canva (무료)',   icon:'🖼️', category:'design',       defaultPrice:0, currency:'KRW' },
+      { serviceId:'chatgpt_free', name:'ChatGPT (무료)', icon:'🤖', category:'ai',           defaultPrice:0, currency:'KRW' },
+      { serviceId:'claude_free',  name:'Claude (무료)',  icon:'🧠', category:'ai',           defaultPrice:0, currency:'KRW' },
+      { serviceId:'github_free',  name:'GitHub (무료)',  icon:'💻', category:'dev',          defaultPrice:0, currency:'KRW' },
     ];
-
-    const USD_RATE = 1500;
 
     function renderStep1() {
       container.innerHTML = '';
@@ -1974,6 +2006,7 @@
           amount:      AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle),
           color:       coloring.fill,
           strokeColor: coloring.stroke,
+          isFree:      sub.price === 0,
         });
       });
 
@@ -1993,7 +2026,7 @@
         const sorted = billingDays.slice().sort((a, b) => a.day - b.day);
         let totalMonthly = 0;
         sorted.forEach(b => {
-          totalMonthly += b.amount;
+          if (!b.isFree) totalMonthly += b.amount;
           const row = document.createElement('div');
           row.className = 'billing-item';
           row.style.cursor = 'pointer';
@@ -2001,7 +2034,7 @@
             <span style="font-size:1rem">${SERVICE_ICONS[b.serviceId] || '💳'}</span>
             <span style="flex:1;font-weight:500">${b.serviceName}</span>
             <span class="text-muted text-sm">${viewMonth}월 ${b.day}일</span>
-            <span class="font-bold">${krw(b.amount)}</span>`;
+            <span class="font-bold">${b.isFree ? '<span class="badge badge-green" style="font-size:0.72rem">무료</span>' : krw(b.amount)}</span>`;
           row.addEventListener('click', () => navigate('detail', { serviceId: b.serviceId }));
           listCard.appendChild(row);
         });

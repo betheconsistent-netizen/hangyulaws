@@ -35,6 +35,7 @@ window.AppConfig = {
 
   /* ───── Score 컴포넌트 파라미터 ───── */
   TARGET_DAILY_MIN: 60,         // usageIntensity 100점 기준 일평균(분)
+  FREE_PLAN_MARKER: 0,          // price=0 이면 무료 플랜으로 취급
 
   /* ───── 재정규화 하한 가드 ───── */
   MIN_AVAILABLE_WEIGHT: 0.40,   // 이 미만이면 점수 미산출 → '판단 보류'
