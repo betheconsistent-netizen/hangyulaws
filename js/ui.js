@@ -454,7 +454,7 @@
             <div class="sub-plan">${sub.planName} · ${coverageBadge(t)}</div>
           </div>
           <div class="sub-usage">
-            <div class="usage-val">${t === 'C' ? '측정 안 됨' : fmtMin(sm.avgDailyAdjustedMin)}</div>
+            <div class="usage-val">${t === 'C' ? (sub.avgDailyMinutes ? `~${sub.avgDailyMinutes}분` : '추적 안 됨') : fmtMin(sm.avgDailyAdjustedMin)}</div>
             <div class="usage-lbl">일평균</div>
           </div>
           <div class="sub-price">
@@ -1390,81 +1390,172 @@
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
-      <div class="modal" style="max-width:400px">
+      <div class="modal" style="max-width:420px">
         <div class="modal-header">
           <span class="modal-title">${svcIcon(sub.serviceId)} ${sub.serviceName} — 사용 시간 입력</span>
           <button class="modal-close" id="uc-close">✕</button>
         </div>
-        <p class="text-sm text-muted" style="margin-bottom:16px;line-height:1.6">
-          오늘 이 서비스를 얼마나 사용하셨나요?<br>
-          입력한 값은 <strong style="color:var(--c-text)">self_reported</strong> 방식으로 기록되며 Value Score 계산에 반영됩니다.
-        </p>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-          <div class="form-group" style="flex:1;margin:0">
-            <label class="form-label">시간 (h)</label>
-            <input class="form-input" id="uc-hours" type="number" min="0" max="23" value="0" style="text-align:center">
-          </div>
-          <div style="padding-top:20px;color:var(--c-muted);font-weight:700">:</div>
-          <div class="form-group" style="flex:1;margin:0">
-            <label class="form-label">분 (m)</label>
-            <input class="form-input" id="uc-mins" type="number" min="0" max="59" value="0" style="text-align:center">
-          </div>
+
+        <!-- 모드 탭 -->
+        <div style="display:flex;gap:6px;margin-bottom:16px;background:var(--c-surface2);padding:4px;border-radius:var(--r-sm)">
+          <button class="uc-tab active-tab" data-mode="today"
+            style="flex:1;padding:7px;border-radius:var(--r-xs);font-size:0.82rem;font-weight:600;background:var(--c-accent);color:#fff;border:none;cursor:pointer">
+            오늘 사용 기록
+          </button>
+          <button class="uc-tab" data-mode="daily"
+            style="flex:1;padding:7px;border-radius:var(--r-xs);font-size:0.82rem;font-weight:500;background:none;color:var(--c-muted);border:none;cursor:pointer">
+            하루 평균 설정
+          </button>
         </div>
-        <div id="uc-preview" class="text-xs text-muted" style="margin-bottom:16px;min-height:16px"></div>
-        <div class="form-actions">
+
+        <!-- 오늘 모드 -->
+        <div id="uc-mode-today">
+          <p class="text-sm text-muted" style="margin-bottom:14px;line-height:1.6">
+            오늘 이 서비스를 얼마나 사용하셨나요?
+          </p>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <div class="form-group" style="flex:1;margin:0">
+              <label class="form-label">시간 (h)</label>
+              <input class="form-input" id="uc-hours" type="number" min="0" max="23" value="0" style="text-align:center">
+            </div>
+            <div style="padding-top:20px;color:var(--c-muted);font-weight:700">:</div>
+            <div class="form-group" style="flex:1;margin:0">
+              <label class="form-label">분 (m)</label>
+              <input class="form-input" id="uc-mins" type="number" min="0" max="59" value="0" style="text-align:center">
+            </div>
+          </div>
+          <div id="uc-preview" class="text-xs text-muted" style="margin-bottom:4px;min-height:16px"></div>
+        </div>
+
+        <!-- 하루 평균 모드 -->
+        <div id="uc-mode-daily" style="display:none">
+          <p class="text-sm text-muted" style="margin-bottom:14px;line-height:1.6">
+            이 서비스를 하루에 평균 몇 분 정도 사용하시나요?<br>
+            <span style="font-size:0.75rem">설정하면 매일 자동으로 이 값으로 기록됩니다.</span>
+          </p>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <div class="form-group" style="flex:1;margin:0">
+              <label class="form-label">하루 평균 사용 시간 (분)</label>
+              <input class="form-input" id="uc-daily-mins" type="number" min="1" max="1440"
+                value="${sub.avgDailyMinutes || 30}" style="text-align:center;font-size:1rem;font-weight:700">
+            </div>
+            <div style="padding-top:20px;color:var(--c-muted);font-size:0.8rem">분/일</div>
+          </div>
+          <div id="uc-daily-preview" class="text-xs text-muted" style="margin-bottom:4px;min-height:16px"></div>
+        </div>
+
+        <div class="form-actions" style="margin-top:14px">
           <button class="btn btn-secondary" id="uc-cancel">취소</button>
-          <button class="btn btn-primary" id="uc-save">기록하기</button>
+          <button class="btn btn-primary" id="uc-save">저장</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
 
+    let currentMode = 'today';
+
+    // 탭 전환
+    overlay.querySelectorAll('.uc-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        currentMode = tab.dataset.mode;
+        overlay.querySelectorAll('.uc-tab').forEach(t => {
+          t.style.background = t.dataset.mode === currentMode ? 'var(--c-accent)' : 'none';
+          t.style.color = t.dataset.mode === currentMode ? '#fff' : 'var(--c-muted)';
+          t.style.fontWeight = t.dataset.mode === currentMode ? '600' : '500';
+        });
+        overlay.querySelector('#uc-mode-today').style.display = currentMode === 'today' ? 'block' : 'none';
+        overlay.querySelector('#uc-mode-daily').style.display = currentMode === 'daily' ? 'block' : 'none';
+      });
+    });
+
     const hoursInput = overlay.querySelector('#uc-hours');
     const minsInput  = overlay.querySelector('#uc-mins');
     const preview    = overlay.querySelector('#uc-preview');
+    const dailyInput = overlay.querySelector('#uc-daily-mins');
+    const dailyPreview = overlay.querySelector('#uc-daily-preview');
 
     function updatePreview() {
       const h = parseInt(hoursInput.value) || 0;
       const m = parseInt(minsInput.value) || 0;
       const total = h * 60 + m;
-      if (total > 0) {
+      if (total > 0 && sub.price > 0) {
         const monthly = AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle);
-        const costPerHour = total > 0 ? (monthly / (total / 60)).toFixed(0) : null;
-        preview.textContent = `총 ${total}분 · 오늘 시간당 비용 ₩${parseInt(costPerHour).toLocaleString()}`;
+        const costPerHour = (monthly / (total / 60)).toFixed(0);
+        preview.textContent = `총 ${total}분 · 시간당 ₩${parseInt(costPerHour).toLocaleString()}`;
       } else {
-        preview.textContent = '';
+        preview.textContent = total > 0 ? `총 ${total}분` : '';
       }
     }
+    function updateDailyPreview() {
+      const m = parseInt(dailyInput.value) || 0;
+      if (m > 0 && sub.price > 0) {
+        const monthly = AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle);
+        const costPerHour = (monthly / (m / 60)).toFixed(0);
+        dailyPreview.textContent = `월 ${m * 30}분 · 시간당 ₩${parseInt(costPerHour).toLocaleString()}`;
+      } else {
+        dailyPreview.textContent = m > 0 ? `월 약 ${m * 30}분` : '';
+      }
+    }
+
     hoursInput.addEventListener('input', updatePreview);
     minsInput.addEventListener('input', updatePreview);
+    dailyInput.addEventListener('input', updateDailyPreview);
+    updateDailyPreview();
 
     overlay.querySelector('#uc-close').addEventListener('click', () => overlay.remove());
     overlay.querySelector('#uc-cancel').addEventListener('click', () => overlay.remove());
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 
     overlay.querySelector('#uc-save').addEventListener('click', () => {
+      if (currentMode === 'daily') {
+        // 하루 평균 저장: subscription에 avgDailyMinutes 설정
+        const dailyMins = parseInt(dailyInput.value) || 0;
+        if (dailyMins <= 0) { alert('분을 입력해주세요.'); return; }
+        const idx = state.subscriptions.findIndex(s => s.id === subId);
+        if (idx >= 0) {
+          state.subscriptions[idx].avgDailyMinutes = dailyMins;
+          // 오늘 세션도 함께 생성
+          const totalSec = dailyMins * 60;
+          const startedAt = TODAY + 'T09:00:00Z';
+          const endedAt = new Date(new Date(startedAt).getTime() + totalSec * 1000).toISOString().slice(0,16) + ':00Z';
+          if (!state.sessions) state.sessions = [];
+          state.sessions = state.sessions.filter(s =>
+            !(s.serviceId === sub.serviceId && s.measurementMode === 'self_reported' && s.startedAt.startsWith(TODAY))
+          );
+          state.sessions.push({
+            eventId: 'daily_' + sub.serviceId + '_' + Date.now(),
+            serviceId: sub.serviceId, planId: sub.planId,
+            deviceId: 'manual', platform: 'web_ext',
+            startedAt, endedAt, tzOffsetMinutes: 540,
+            activeSeconds: totalSec, measurementMode: 'self_reported', confidence: 0.5,
+          });
+        }
+        AppStore.save(state);
+        refreshApp();
+        overlay.remove();
+        const toast = document.createElement('div');
+        toast.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--c-surface);border:1px solid var(--c-green);border-radius:var(--r-md);padding:10px 20px;font-size:0.85rem;box-shadow:var(--shadow-md);z-index:9999;color:var(--c-green)';
+        toast.textContent = `✅ ${sub.serviceName} 하루 평균 ${dailyMins}분으로 설정됨`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+        return;
+      }
+
+      // 오늘 모드
       const h = parseInt(hoursInput.value) || 0;
       const m = parseInt(minsInput.value) || 0;
       const totalSec = (h * 3600) + (m * 60);
       if (totalSec <= 0) { alert('사용 시간을 입력해주세요.'); return; }
 
-      // self_reported 세션 생성
       const startedAt = TODAY + 'T09:00:00Z';
       const endedAt   = new Date(new Date(startedAt).getTime() + totalSec * 1000).toISOString().slice(0,16) + ':00Z';
       const session = {
         eventId: 'manual_' + sub.serviceId + '_' + Date.now(),
-        serviceId:   sub.serviceId,
-        planId:      sub.planId,
-        deviceId:    'manual',
-        platform:    'web_ext',
-        startedAt,
-        endedAt,
-        tzOffsetMinutes: 540,
-        activeSeconds: totalSec,
-        measurementMode: 'self_reported',
-        confidence: 0.5,
+        serviceId: sub.serviceId, planId: sub.planId,
+        deviceId: 'manual', platform: 'web_ext',
+        startedAt, endedAt, tzOffsetMinutes: 540,
+        activeSeconds: totalSec, measurementMode: 'self_reported', confidence: 0.5,
       };
       if (!state.sessions) state.sessions = [];
-      // 오늘 날짜의 기존 self_reported 세션 교체 (중복 방지)
       state.sessions = state.sessions.filter(s =>
         !(s.serviceId === sub.serviceId && s.measurementMode === 'self_reported' && s.startedAt.startsWith(TODAY))
       );
@@ -1472,8 +1563,6 @@
       AppStore.save(state);
       refreshApp();
       overlay.remove();
-
-      // 완료 토스트
       const toast = document.createElement('div');
       toast.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--c-surface);border:1px solid var(--c-green);border-radius:var(--r-md);padding:10px 20px;font-size:0.85rem;box-shadow:var(--shadow-md);z-index:9999;color:var(--c-green)';
       toast.textContent = `✅ ${sub.serviceName} ${h}시간 ${m}분 기록 완료`;
@@ -1759,30 +1848,30 @@
     const USD_RATE = 1500;
 
     const QUICK_SERVICES = [
-      { serviceId:'chatgpt',         name:'ChatGPT',          icon:'🤖', category:'ai',           defaultPrice:24000, currency:'KRW' },
-      { serviceId:'claude',          name:'Claude',            icon:'🧠', category:'ai',           defaultPrice:28000, currency:'KRW' },
-      { serviceId:'perplexity',      name:'Perplexity',        icon:'🔍', category:'ai',           defaultPrice:20000, currency:'KRW' },
-      { serviceId:'gemini',          name:'Gemini',            icon:'✨', category:'ai',           defaultPrice:20,    currency:'USD' },
-      { serviceId:'cursor',          name:'Cursor',            icon:'⌨️', category:'dev',          defaultPrice:20,    currency:'USD' },
-      { serviceId:'github',          name:'GitHub Pro',        icon:'💻', category:'dev',          defaultPrice:4,     currency:'USD' },
-      { serviceId:'figma',           name:'Figma',             icon:'🎨', category:'design',       defaultPrice:15,    currency:'USD' },
-      { serviceId:'canva',           name:'Canva',             icon:'🖼️', category:'design',       defaultPrice:17000, currency:'KRW' },
-      { serviceId:'adobe',           name:'Adobe CC',          icon:'📐', category:'design',       defaultPrice:74000, currency:'KRW' },
-      { serviceId:'notion',          name:'Notion',            icon:'📝', category:'productivity', defaultPrice:15000, currency:'KRW' },
-      { serviceId:'slack',           name:'Slack',             icon:'💬', category:'productivity', defaultPrice:6,     currency:'USD' },
-      { serviceId:'microsoft365',    name:'MS 365',            icon:'📊', category:'productivity', defaultPrice:9900,  currency:'KRW' },
-      { serviceId:'netflix',         name:'Netflix',           icon:'🎬', category:'media',        defaultPrice:17000, currency:'KRW' },
-      { serviceId:'youtube_premium', name:'YouTube Premium',   icon:'▶️', category:'media',        defaultPrice:14900, currency:'KRW' },
-      { serviceId:'disney',          name:'Disney+',           icon:'🏰', category:'media',        defaultPrice:9900,  currency:'KRW' },
-      { serviceId:'spotify',         name:'Spotify',           icon:'🎵', category:'music',        defaultPrice:11990, currency:'KRW' },
-      { serviceId:'melon',           name:'Melon',             icon:'🍈', category:'music',        defaultPrice:11000, currency:'KRW' },
-      { serviceId:'apple_music',     name:'Apple Music',       icon:'🎶', category:'music',        defaultPrice:11000, currency:'KRW' },
-      { serviceId:'xbox_gamepass',   name:'Xbox Game Pass',    icon:'🎮', category:'game',         defaultPrice:9900,  currency:'KRW' },
-      { serviceId:'playstation_plus',name:'PS Plus',           icon:'🕹️', category:'game',        defaultPrice:9900,  currency:'KRW' },
-      { serviceId:'coupang_wow',     name:'쿠팡 WOW',           icon:'🛒', category:'shopping',    defaultPrice:7890,  currency:'KRW' },
-      { serviceId:'baemin_club',     name:'배민클럽',             icon:'🛵', category:'delivery',   defaultPrice:3900,  currency:'KRW' },
-      { serviceId:'icloud',          name:'iCloud+',           icon:'☁️', category:'cloud',        defaultPrice:1200,  currency:'KRW' },
-      { serviceId:'google_one',      name:'Google One',        icon:'🗄️', category:'cloud',        defaultPrice:2400,  currency:'KRW' },
+      { serviceId:'chatgpt',         name:'ChatGPT',          icon:'🤖', category:'ai',           defaultPrice:24000, currency:'KRW', hasFreePlan:true  },
+      { serviceId:'claude',          name:'Claude',            icon:'🧠', category:'ai',           defaultPrice:28000, currency:'KRW', hasFreePlan:true  },
+      { serviceId:'perplexity',      name:'Perplexity',        icon:'🔍', category:'ai',           defaultPrice:20000, currency:'KRW', hasFreePlan:true  },
+      { serviceId:'gemini',          name:'Gemini',            icon:'✨', category:'ai',           defaultPrice:20,    currency:'USD', hasFreePlan:true  },
+      { serviceId:'cursor',          name:'Cursor',            icon:'⌨️', category:'dev',          defaultPrice:20,    currency:'USD', hasFreePlan:true  },
+      { serviceId:'github',          name:'GitHub Pro',        icon:'💻', category:'dev',          defaultPrice:4,     currency:'USD', hasFreePlan:true  },
+      { serviceId:'figma',           name:'Figma',             icon:'🎨', category:'design',       defaultPrice:15,    currency:'USD', hasFreePlan:true  },
+      { serviceId:'canva',           name:'Canva',             icon:'🖼️', category:'design',       defaultPrice:17000, currency:'KRW', hasFreePlan:true  },
+      { serviceId:'adobe',           name:'Adobe CC',          icon:'📐', category:'design',       defaultPrice:74000, currency:'KRW', hasFreePlan:false },
+      { serviceId:'notion',          name:'Notion',            icon:'📝', category:'productivity', defaultPrice:15000, currency:'KRW', hasFreePlan:true  },
+      { serviceId:'slack',           name:'Slack',             icon:'💬', category:'productivity', defaultPrice:6,     currency:'USD', hasFreePlan:true  },
+      { serviceId:'microsoft365',    name:'MS 365',            icon:'📊', category:'productivity', defaultPrice:9900,  currency:'KRW', hasFreePlan:false },
+      { serviceId:'netflix',         name:'Netflix',           icon:'🎬', category:'media',        defaultPrice:17000, currency:'KRW', hasFreePlan:false },
+      { serviceId:'youtube_premium', name:'YouTube Premium',   icon:'▶️', category:'media',        defaultPrice:14900, currency:'KRW', hasFreePlan:true  },
+      { serviceId:'disney',          name:'Disney+',           icon:'🏰', category:'media',        defaultPrice:9900,  currency:'KRW', hasFreePlan:false },
+      { serviceId:'spotify',         name:'Spotify',           icon:'🎵', category:'music',        defaultPrice:11990, currency:'KRW', hasFreePlan:true  },
+      { serviceId:'melon',           name:'Melon',             icon:'🍈', category:'music',        defaultPrice:11000, currency:'KRW', hasFreePlan:false },
+      { serviceId:'apple_music',     name:'Apple Music',       icon:'🎶', category:'music',        defaultPrice:11000, currency:'KRW', hasFreePlan:false },
+      { serviceId:'xbox_gamepass',   name:'Xbox Game Pass',    icon:'🎮', category:'game',         defaultPrice:9900,  currency:'KRW', hasFreePlan:false },
+      { serviceId:'playstation_plus',name:'PS Plus',           icon:'🕹️', category:'game',        defaultPrice:9900,  currency:'KRW', hasFreePlan:false },
+      { serviceId:'coupang_wow',     name:'쿠팡 WOW',           icon:'🛒', category:'shopping',    defaultPrice:7890,  currency:'KRW', hasFreePlan:false },
+      { serviceId:'baemin_club',     name:'배민클럽',             icon:'🛵', category:'delivery',   defaultPrice:3900,  currency:'KRW', hasFreePlan:false },
+      { serviceId:'icloud',          name:'iCloud+',           icon:'☁️', category:'cloud',        defaultPrice:1200,  currency:'KRW', hasFreePlan:false },
+      { serviceId:'google_one',      name:'Google One',        icon:'🗄️', category:'cloud',        defaultPrice:2400,  currency:'KRW', hasFreePlan:false },
     ];
 
     // ── 선택 상태 (Set으로 관리 → 중복 원천 차단) ──
@@ -1901,7 +1990,7 @@
           ? Math.round(svc.defaultPrice * USD_RATE)
           : svc.defaultPrice;
         const dbInfo = AppServiceDB?.autofill(svc.serviceId) || {};
-        const hasFreePlan = dbInfo.hasFreePlan || false;
+        const hasFreePlan = svc.hasFreePlan === true;  // QUICK_SERVICES에서 직접
 
         priceState[svc.serviceId] = { isFree: false, price: defaultKRW };
 

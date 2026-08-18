@@ -135,7 +135,7 @@
       capabilityTags:       entry.tags,
       importanceHint:       entry.importanceHint,
       replacementHint:      entry.replacementHint,
-      hasFreePlan:          entry.hasFreePlan || false,
+      hasFreePlan:          entry.hasFreePlan === true,  // 명시적으로 true인 경우만
       suggestedServiceId:   entry.ids[0],
     };
   }
