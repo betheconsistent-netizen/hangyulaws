@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>구독 가치 분석</title>
+  <title>SubValue — 구독 가치 분석</title>
   <link rel="stylesheet" href="styles.css">
-  <meta name="description" content="구독 서비스 가치 분석 및 관리 웹앱 MVP">
+  <meta name="description" content="구독 서비스 가치 분석 및 관리 웹앱">
 </head>
 <body>
 
@@ -49,12 +49,11 @@
       <button id="sidebar-toggle" aria-label="메뉴 열기/닫기">☰</button>
       <span id="header-title" class="header-title">대시보드</span>
       <div class="header-actions">
-        <span class="badge badge-gray text-xs">v1.2</span>
+        <span class="badge badge-gray text-xs">v1.5</span>
       </div>
     </header>
 
     <main id="view-container" role="main" aria-live="polite">
-      <!-- 뷰가 여기에 렌더링됩니다 -->
       <div class="empty-state">
         <div class="empty-icon"><span class="spinner"></span></div>
         <p>로딩 중…</p>
@@ -84,7 +83,6 @@
 <script src="js/ui.js"></script>
 
 <script>
-  // 앱 진입점
   document.addEventListener('DOMContentLoaded', function () {
     try {
       AppUI.initApp();
