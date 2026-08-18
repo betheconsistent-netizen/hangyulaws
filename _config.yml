@@ -1,0 +1,6 @@
+plugins: []
+exclude: []
+include:
+  - "*.html"
+  - "js/"
+  - "styles.css"
