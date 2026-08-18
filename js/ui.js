@@ -1573,7 +1573,13 @@
   }
 
   function initApp() {
-    // 상태 로드 (빈 상태로 시작 — 데모 데이터는 사용자가 직접 불러옴)
+    // 상태 로드
+    // ?fresh=1 파라미터가 있으면 기존 데이터 초기화 후 온보딩 시작
+    if (new URLSearchParams(window.location.search).get('fresh') === '1') {
+      localStorage.removeItem('subvalue_app');
+      // URL에서 파라미터 제거 (새로고침 시 반복 초기화 방지)
+      history.replaceState(null, '', window.location.pathname);
+    }
     let state = AppStore.load();
     global._appState = state;
     global._appState.settings.today = AppDemoData.TODAY;
