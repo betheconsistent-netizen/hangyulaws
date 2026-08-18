@@ -4,7 +4,7 @@
            sessionStorage.getItem('subvalue_fresh');
   if (!ok) {
     var href = window.location.href;
-    var base = href.substring(0, href.lastIndexOf('app.html'));
+    var base = href.substring(0, href.lastIndexOf('subvalue.html'));
     window.location.replace(base + 'index.html');
   }
 })();
