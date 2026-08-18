@@ -1431,13 +1431,13 @@
         <div id="uc-mode-daily" style="display:none">
           <p class="text-sm text-muted" style="margin-bottom:14px;line-height:1.6">
             이 서비스를 하루에 평균 몇 분 정도 사용하시나요?<br>
-            <span style="font-size:0.75rem">설정하면 매일 자동으로 이 값으로 기록됩니다.</span>
+            <span style="font-size:0.75rem">설정하면 오늘부터 이 값으로 기록됩니다.</span>
           </p>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
             <div class="form-group" style="flex:1;margin:0">
-              <label class="form-label">하루 평균 사용 시간 (분)</label>
+              <label class="form-label">하루 평균 사용 시간</label>
               <input class="form-input" id="uc-daily-mins" type="number" min="1" max="1440"
-                value="${sub.avgDailyMinutes || 30}" style="text-align:center;font-size:1rem;font-weight:700">
+                style="text-align:center;font-size:1rem;font-weight:700">
             </div>
             <div style="padding-top:20px;color:var(--c-muted);font-size:0.8rem">분/일</div>
           </div>
@@ -1468,10 +1468,13 @@
     });
 
     const hoursInput = overlay.querySelector('#uc-hours');
-    const minsInput  = overlay.querySelector('#uc-mins');
-    const preview    = overlay.querySelector('#uc-preview');
-    const dailyInput = overlay.querySelector('#uc-daily-mins');
+    const minsInput    = overlay.querySelector('#uc-mins');
+    const preview      = overlay.querySelector('#uc-preview');
+    const dailyInput   = overlay.querySelector('#uc-daily-mins');
     const dailyPreview = overlay.querySelector('#uc-daily-preview');
+
+    // innerHTML에 변수를 직접 삽입하지 않으므로 DOM append 후 명시적으로 값 세팅
+    dailyInput.value = String(sub.avgDailyMinutes || 30);
 
     function updatePreview() {
       const h = parseInt(hoursInput.value) || 0;
