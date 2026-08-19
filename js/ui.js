@@ -5,12 +5,23 @@
 (function (global) {
   'use strict';
 
-  /* ─── 서비스 아이콘 이모지 맵 ─── */
+  /* ─── 서비스 아이콘 이모지 맵 (v1.42: service-db icon 우선) ─── */
   const SERVICE_ICONS = {
     chatgpt:'🤖', claude:'🧠', perplexity:'🔍', cursor:'⌨️',
     figma:'🎨', notion:'📝', canva:'🖼️', netflix:'🎬', adobe:'📐',
+    spotify:'🎵', youtube_premium:'▶️', disney:'🏰', slack:'💬',
+    microsoft365:'📊', google_one:'🗄️', icloud:'☁️', coupang_rocket:'🛒',
+    baemin_club:'🛵', melon:'🍈', apple_music:'🎶',
+    xbox_gamepass:'🎮', playstation_plus:'🕹️',
   };
-  function svcIcon(id) { return SERVICE_ICONS[id] || '📦'; }
+  function svcIcon(id) {
+    // service-db에 icon이 있으면 우선 사용
+    if (global.AppServiceDB) {
+      const entry = AppServiceDB.SERVICE_DB.find(e => e.ids.includes(id));
+      if (entry && entry.icon) return entry.icon;
+    }
+    return SERVICE_ICONS[id] || '📦';
+  }
 
   /* ─── 커버리지 배지 헬퍼 (진행률 + 툴팁 포함) ─── */
   function coverageBadge(tier) {
@@ -55,7 +66,7 @@
     document.getElementById('header-title').textContent = {
       dashboard: '대시보드', subscriptions: '구독 목록', detail: '서비스 상세',
       insights: '인사이트 & 알림', portfolio: '구독 최적화 분석', settings: '설정',
-      calendar: '결제 캘린더', onboarding: '시작하기',
+      calendar: '결제 캘린더', onboarding: '시작하기', support: '문의 / Q&A',
     }[view] || view;
 
     if (VIEWS[view]) VIEWS[view](container, resolvedParams);
@@ -594,7 +605,7 @@
       note.className = 'text-xs text-muted';
       note.style.marginTop = '8px';
       // 사용자 친화적 판단 보류 메시지
-      const holdMsg = coverageTier === 'C'
+      const holdMsg = tier === 'C'
         ? '이 서비스는 아직 사용 시간 측정이 되지 않아 분석할 수 없어요. 기기를 연결하면 바로 분석이 시작됩니다.'
         : '아직 충분한 데이터가 모이지 않았어요. 조금 더 사용하면 분석이 가능합니다.';
       note.textContent = ri ? ri.recommendation.reason || holdMsg : holdMsg;
@@ -1100,23 +1111,105 @@
     });
   }
 
+  /* ── 절약 체감 환산 데이터 ── */
+  const SAVING_UNITS = [
+    { minKRW: 0,     maxKRW: 4999,  icon: '☕',  label: '아메리카노', unit: '잔', unitPrice: 4500 },
+    { minKRW: 5000,  maxKRW: 14999, icon: '🍜',  label: '편의점 한 끼', unit: '번', unitPrice: 5000 },
+    { minKRW: 15000, maxKRW: 29999, icon: '🎬',  label: '영화 한 편', unit: '번', unitPrice: 15000 },
+    { minKRW: 30000, maxKRW: 49999, icon: '🍗',  label: '치킨', unit: '마리', unitPrice: 21000 },
+    { minKRW: 50000, maxKRW: 89999, icon: '🍗',  label: '치킨', unit: '마리', unitPrice: 21000 },
+    { minKRW: 90000, maxKRW: 199999,icon: '🍽️', label: '외식', unit: '번', unitPrice: 30000 },
+    { minKRW: 200000,maxKRW: Infinity, icon: '✈️', label: '여행 비용', unit: '일분', unitPrice: 200000 },
+  ];
+
+  function getSavingExpression(monthlyKRW) {
+    if (!monthlyKRW || monthlyKRW <= 0) return null;
+    const unit = SAVING_UNITS.find(u => monthlyKRW >= u.minKRW && monthlyKRW < u.maxKRW)
+                 || SAVING_UNITS[SAVING_UNITS.length - 1];
+    const count = Math.floor(monthlyKRW / unit.unitPrice);
+    if (count < 1) {
+      // 기준 금액에 못 미치면 한 단계 아래로
+      const smaller = SAVING_UNITS.find(u => monthlyKRW >= u.minKRW);
+      if (smaller && smaller !== unit) {
+        const c2 = Math.floor(monthlyKRW / smaller.unitPrice);
+        if (c2 >= 1) return { icon: smaller.icon, text: `${smaller.label} 약 ${c2}${smaller.unit}`, count: c2, label: smaller.label };
+      }
+      return null;
+    }
+    return { icon: unit.icon, text: `${unit.label} 약 ${count}${unit.unit}`, count, label: unit.label };
+  }
+
   /* ── 포트폴리오 전체 뷰 (프리미엄 전용) ── */
   function renderPortfolioFull(container, state, C) {
     const { analysis } = C;
     const LABELS = AppConfig.RECOMMENDATION_LABELS;
+    const subs   = state.subscriptions;
+
+    /* ── Hero Box: 절약 요약 ── */
+    const monthly   = analysis.summary.monthlySavingsKRW || 0;
+    const yearly    = analysis.summary.yearlySavingsKRW  || 0;
+    const totalNow  = subs.reduce((s, sub) => s + AppCatalog.toMonthlyAmount(sub.price, sub.billingCycle), 0);
+    const totalAfter = Math.max(0, totalNow - monthly);
+
+    const heroBox = document.createElement('div');
+    heroBox.className = 'portfolio-hero';
+
+    if (monthly <= 0) {
+      // 절약액 없음 또는 구독 부족
+      const noSavingMsg = subs.length < 2
+        ? '구독을 더 추가하면 최적화 분석이 시작됩니다.'
+        : '현재 구독이 모두 적절하게 활용되고 있어요. 👍';
+      heroBox.innerHTML = `
+        <div class="portfolio-hero-inner no-saving">
+          <div class="hero-icon" style="font-size:2rem;margin-bottom:10px">✅</div>
+          <div class="hero-main-text">절감 기회가 아직 없어요</div>
+          <div class="hero-sub-text" style="margin-top:8px">${noSavingMsg}</div>
+          <div class="hero-stats-row" style="margin-top:16px">
+            <div class="hero-stat"><div class="hero-stat-label">현재 월 구독료</div>
+              <div class="hero-stat-value">${krw(Math.round(totalNow))}</div></div>
+          </div>
+        </div>`;
+    } else {
+      const expr = getSavingExpression(monthly);
+      heroBox.innerHTML = `
+        <div class="portfolio-hero-inner">
+          <div class="hero-eyebrow">이렇게 바꾸면,</div>
+          ${expr ? `<div class="hero-expression">
+            <span class="hero-expr-icon">${expr.icon}</span>
+            <span class="hero-expr-text">매달 <strong>${expr.label} ${expr.count}개</strong>를 더 살 수 있어요!</span>
+          </div>` : ''}
+          <div class="hero-savings-row">
+            <div class="hero-monthly-saving">
+              <span class="hero-saving-label">월 예상 절약액</span>
+              <span class="hero-saving-amount">${krw(Math.round(monthly))}</span>
+            </div>
+            <div class="hero-yearly">
+              <span class="hero-saving-label">연간으로 환산하면</span>
+              <span class="hero-yearly-amount">${krw(Math.round(yearly))}</span>
+            </div>
+          </div>
+          <div class="hero-stats-row">
+            <div class="hero-stat">
+              <div class="hero-stat-label">현재 월 구독료</div>
+              <div class="hero-stat-value">${krw(Math.round(totalNow))}</div>
+            </div>
+            <div class="hero-stat-arrow">→</div>
+            <div class="hero-stat">
+              <div class="hero-stat-label">최적화 후</div>
+              <div class="hero-stat-value hero-stat-after">${krw(Math.round(totalAfter))}</div>
+            </div>
+          </div>
+          <div class="hero-disclaimer">* 해지 검토 구독을 모두 취소한 경우의 예상 절감액입니다.</div>
+        </div>`;
+    }
+    container.appendChild(heroBox);
 
     const header = document.createElement('div');
-    header.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+    header.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;margin-top:8px">
       <div>
         <h2 style="font-size:1rem;font-weight:700">AI 포트폴리오 최적화</h2>
         <p class="text-muted text-sm">현재 구독 포트폴리오의 가치 분석 결과입니다.</p>
       </div>
-      ${analysis.summary.monthlySavingsKRW > 0 ? `
-        <div style="text-align:right">
-          <div class="text-muted text-xs">예상 절감액</div>
-          <div class="text-green font-bold text-xl">${krw(analysis.summary.monthlySavingsKRW)}/월</div>
-          <div class="text-muted text-xs">연 ${krw(analysis.summary.yearlySavingsKRW)}</div>
-        </div>` : ''}
     </div>`;
     container.appendChild(header);
 
@@ -1378,6 +1471,171 @@
         navigate('dashboard');
       }
     });
+  });
+
+  /* ══════════════════════════════════════════
+   * VIEW: SUPPORT — 문의 / Q&A (v1.42)
+   * ══════════════════════════════════════════ */
+  registerView('support', function (container) {
+    const state = global._appState;
+    if (!state.support) state.support = { tickets: [] };
+
+    const TICKET_TYPES = [
+      { value: 'service',  label: '서비스 이용 문의' },
+      { value: 'data',     label: '구독 데이터 문의' },
+      { value: 'billing',  label: '결제 관련 문의' },
+      { value: 'bug',      label: '오류 신고' },
+      { value: 'feature',  label: '기능 제안' },
+      { value: 'other',    label: '기타' },
+    ];
+    const STATUS_LABELS = {
+      received:    { text: '접수됨',    cls: 'badge-blue' },
+      reviewing:   { text: '확인 중',   cls: 'badge-yellow' },
+      answered:    { text: '답변 완료', cls: 'badge-green' },
+    };
+
+    // ── 문의 작성 폼 ──
+    const formCard = document.createElement('div');
+    formCard.className = 'card';
+    formCard.innerHTML = `
+      <div class="card-header">
+        <span class="card-title">💬 새 문의 작성</span>
+        <span class="text-xs text-muted">평균 응답 1~2 영업일</span>
+      </div>
+      <form id="support-form">
+        <div class="form-group">
+          <label class="form-label">문의 유형 *</label>
+          <select class="form-select" name="type" id="ticket-type">
+            <option value="">유형을 선택하세요</option>
+            ${TICKET_TYPES.map(t => `<option value="${t.value}">${t.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">제목 *</label>
+          <input class="form-input" name="title" placeholder="문의 제목을 입력하세요" maxlength="100" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">문의 내용 *</label>
+          <textarea class="form-input" name="body" rows="5"
+            placeholder="문의 내용을 자세히 적어주세요."
+            style="resize:vertical;min-height:110px;line-height:1.6" required></textarea>
+          <div class="text-xs text-muted" style="text-align:right;margin-top:4px" id="body-count">0 / 1000</div>
+        </div>
+        <div class="form-actions">
+          <button type="reset" class="btn btn-secondary">초기화</button>
+          <button type="submit" class="btn btn-primary">문의 제출 →</button>
+        </div>
+      </form>`;
+    container.appendChild(formCard);
+
+    const bodyArea = formCard.querySelector('[name="body"]');
+    const bodyCount = formCard.querySelector('#body-count');
+    bodyArea.addEventListener('input', () => {
+      const len = bodyArea.value.length;
+      bodyCount.textContent = `${len} / 1000`;
+      if (len > 1000) { bodyArea.value = bodyArea.value.slice(0, 1000); bodyCount.textContent = '1000 / 1000'; }
+    });
+
+    formCard.querySelector('#support-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const type  = fd.get('type');
+      const title = fd.get('title').trim();
+      const body  = fd.get('body').trim();
+      if (!type)  { alert('문의 유형을 선택해 주세요.'); return; }
+      if (!title) { alert('제목을 입력해 주세요.'); return; }
+      if (!body)  { alert('문의 내용을 입력해 주세요.'); return; }
+
+      const ticket = {
+        id:      'tkt_' + Date.now(),
+        type,
+        title,
+        body,
+        status:  'received',
+        createdAt: new Date().toISOString().slice(0, 10),
+        answeredAt: null,
+        answer: null,
+      };
+      if (!state.support) state.support = { tickets: [] };
+      state.support.tickets.unshift(ticket);
+      AppStore.save(state);
+      e.target.reset();
+      bodyCount.textContent = '0 / 1000';
+      renderTicketList();
+      showToast('✅ 문의가 접수되었습니다. 빠른 시일 내에 답변 드리겠습니다.', 'green');
+    });
+
+    // ── 문의 목록 ──
+    const listCard = document.createElement('div');
+    listCard.className = 'card';
+    listCard.id = 'ticket-list-card';
+    container.appendChild(listCard);
+
+    function renderTicketList() {
+      const tickets = state.support?.tickets || [];
+      listCard.innerHTML = `<div class="card-header"><span class="card-title">📋 내 문의 목록</span>
+        <span class="text-xs text-muted">${tickets.length}건</span></div>`;
+      if (!tickets.length) {
+        listCard.innerHTML += `<div class="empty-state" style="padding:32px 20px">
+          <div class="empty-icon" style="font-size:2rem;margin-bottom:10px">📭</div>
+          <p>아직 문의 내역이 없어요.<br>위에서 첫 번째 문의를 남겨보세요.</p></div>`;
+        return;
+      }
+      tickets.forEach(tkt => {
+        const st = STATUS_LABELS[tkt.status] || STATUS_LABELS.received;
+        const typeLabel = TICKET_TYPES.find(t => t.value === tkt.type)?.label || tkt.type;
+        const item = document.createElement('div');
+        item.className = 'ticket-item';
+        item.innerHTML = `
+          <div class="ticket-header">
+            <span class="badge badge-gray text-xs">${typeLabel}</span>
+            <span class="badge ${st.cls} text-xs">${st.text}</span>
+            <span class="text-xs text-muted" style="margin-left:auto">${tkt.createdAt}</span>
+          </div>
+          <div class="ticket-title">${tkt.title}</div>
+          <div class="ticket-body">${tkt.body}</div>
+          ${tkt.answer ? `<div class="ticket-answer"><span class="text-xs font-bold" style="color:var(--c-green)">📨 답변</span>
+            <div style="margin-top:6px;font-size:0.83rem;color:var(--c-text2);line-height:1.6">${tkt.answer}</div>
+            ${tkt.answeredAt ? `<div class="text-xs text-muted" style="margin-top:4px">${tkt.answeredAt}</div>` : ''}
+          </div>` : ''}`;
+        listCard.appendChild(item);
+      });
+    }
+    renderTicketList();
+
+    // ── FAQ 섹션 ──
+    const faqCard = document.createElement('div');
+    faqCard.className = 'card';
+    faqCard.innerHTML = `<div class="card-header"><span class="card-title">❓ 자주 묻는 질문</span></div>`;
+    const faqs = [
+      { q: '구독을 추가했는데 Value Score가 표시되지 않아요.',
+        a: 'Value Score는 최소 2주 이상의 사용 데이터가 필요합니다. 수동으로 사용 시간을 입력하거나 기기를 연결해 데이터를 쌓으면 분석이 시작됩니다.' },
+      { q: '가격이 실제와 다릅니다.',
+        a: '가격은 자동 입력된 기본값이며, 실제 결제 금액과 다를 수 있습니다. 구독 수정에서 직접 변경해 주세요.' },
+      { q: '데이터가 어디에 저장되나요?',
+        a: '모든 데이터는 사용자의 기기(브라우저 localStorage)에만 저장됩니다. 서버로 전송되지 않습니다.' },
+      { q: '구독 최적화 분석이 잠겨 있어요.',
+        a: '구독 최적화 분석은 프리미엄 기능입니다. 현재 데모 버전에서는 잠금 해제 버튼으로 무료로 체험할 수 있습니다.' },
+    ];
+    faqs.forEach((faq, i) => {
+      const item = document.createElement('div');
+      item.className = 'faq-item';
+      item.innerHTML = `
+        <button class="faq-q" data-idx="${i}" aria-expanded="false">
+          <span>${faq.q}</span>
+          <span class="faq-arrow">▼</span>
+        </button>
+        <div class="faq-a" style="display:none">${faq.a}</div>`;
+      item.querySelector('.faq-q').addEventListener('click', function() {
+        const expanded = this.getAttribute('aria-expanded') === 'true';
+        const ansEl = item.querySelector('.faq-a');
+        ansEl.style.display = expanded ? 'none' : 'block';
+        this.setAttribute('aria-expanded', String(!expanded));
+        item.querySelector('.faq-arrow').textContent = expanded ? '▼' : '▲';
+      });
+      faqCard.appendChild(item);
+    });
+    container.appendChild(faqCard);
   });
 
   /* ─── 수동 사용 시간 입력 모달 ─── */
@@ -1737,7 +1995,6 @@
       const catSelect = overlay.querySelector('[name="category"]');
       if (catSelect) catSelect.value = result.category;
     }
-    // 신뢰도 안내
     const confPct = Math.round((result.confidence || 0) * 100);
     const note = overlay.querySelector('#ocr-note') || document.createElement('p');
     note.id = 'ocr-note';
@@ -1748,40 +2005,40 @@
   }
 
   /* ══════════════════════════════════════════
-   * CRUD 모달 — 구독 추가 / 수정
+   * CRUD 모달 — 구독 추가 / 수정 (v1.42: 카드형 UI + 자동완성)
    * ══════════════════════════════════════════ */
   function openSubModal(subId) {
     const state = global._appState;
     const existing = subId ? state.subscriptions.find(s => s.id === subId) : null;
 
+    // 수정 모드: 기존 단순 폼 유지
+    if (existing) {
+      openSubEditModal(subId, existing, state);
+      return;
+    }
+    // 추가 모드: 새 카드형 UI
+    openSubAddModal(state);
+  }
+
+  /* ── 구독 수정 모달 (기존 폼 그대로) ── */
+  function openSubEditModal(subId, existing, state) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal">
         <div class="modal-header">
-          <span class="modal-title">${existing ? '구독 수정' : '구독 추가'}</span>
+          <span class="modal-title">구독 수정</span>
           <button class="modal-close" id="modal-close-btn">✕</button>
         </div>
-        ${!existing ? `<div style="background:var(--c-surface2);border:1px dashed var(--c-border);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
-          <span style="font-size:1.1rem">📷</span>
-          <div style="flex:1">
-            <div class="text-sm font-bold">구독 화면에서 자동 불러오기</div>
-            <div class="text-xs text-muted">결제 문자, 앱 구독 화면 캡처를 올리면 자동으로 채워줘요 (JPG·PNG·WEBP·HEIC)</div>
-          </div>
-          <label class="btn btn-secondary btn-sm" style="cursor:pointer">
-            사진 올리기
-            <input type="file" id="ocr-upload" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style="display:none">
-          </label>
-        </div>` : ''}
         <form id="sub-form">
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">서비스명 *</label>
-              <input class="form-input" name="serviceName" required value="${existing?.serviceName||''}" placeholder="예: Netflix, Spotify" id="svc-name-input">
+              <input class="form-input" name="serviceName" required value="${existing.serviceName||''}" placeholder="예: Netflix, Spotify">
             </div>
             <div class="form-group">
               <label class="form-label">요금제명</label>
-              <input class="form-input" name="planName" value="${existing?.planName||''}" placeholder="예: 스탠다드, Pro">
+              <input class="form-input" name="planName" value="${existing.planName||''}" placeholder="예: 스탠다드, Pro">
             </div>
           </div>
           <div class="form-row">
@@ -1789,24 +2046,24 @@
               <label class="form-label">가격 *</label>
               <div style="display:flex;gap:6px">
                 <input class="form-input" name="priceRaw" type="number" required
-                  value="${existing?.currency==='USD' ? (existing.price/1500).toFixed(2) : (existing?.price||'')}"
+                  value="${existing.currency==='USD' ? (existing.price/1500).toFixed(2) : (existing.price||'')}"
                   placeholder="금액 (0 = 무료)" style="flex:1" id="price-raw-input" min="0">
                 <select class="form-select" name="currency" id="currency-select" style="width:80px">
-                  <option value="KRW" ${(!existing||existing.currency==='KRW')?'selected':''}>KRW</option>
-                  <option value="USD" ${existing?.currency==='USD'?'selected':''}>USD</option>
+                  <option value="KRW" ${existing.currency==='KRW'?'selected':''}>KRW</option>
+                  <option value="USD" ${existing.currency==='USD'?'selected':''}>USD</option>
                 </select>
               </div>
               <div id="price-preview" class="text-xs text-muted" style="margin-top:4px"></div>
               <label style="display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer;font-size:0.78rem;color:var(--c-muted)">
-                <input type="checkbox" id="free-plan-check" ${existing?.price===0?'checked':''}>
+                <input type="checkbox" id="free-plan-check" ${existing.price===0?'checked':''}>
                 무료 플랜으로 등록 (가격 0원)
               </label>
             </div>
             <div class="form-group">
               <label class="form-label">결제 주기</label>
               <select class="form-select" name="billingCycle">
-                <option value="monthly" ${existing?.billingCycle==='monthly'?'selected':''}>월간</option>
-                <option value="yearly"  ${existing?.billingCycle==='yearly' ?'selected':''}>연간</option>
+                <option value="monthly" ${existing.billingCycle==='monthly'?'selected':''}>월간</option>
+                <option value="yearly"  ${existing.billingCycle==='yearly' ?'selected':''}>연간</option>
               </select>
             </div>
           </div>
@@ -1814,58 +2071,44 @@
             <div class="form-group">
               <label class="form-label">카테고리</label>
               <select class="form-select" name="category">
-                ${Object.entries(AppConfig.CATEGORIES).map(([k,v])=>`<option value="${k}" ${existing?.category===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+                ${Object.entries(AppConfig.CATEGORIES).map(([k,v])=>`<option value="${k}" ${existing.category===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
               </select>
             </div>
             <div class="form-group">
               <label class="form-label">다음 결제일</label>
-              <input class="form-input" name="nextBillingDate" type="date" value="${existing?.nextBillingDate||''}">
+              <input class="form-input" name="nextBillingDate" type="date" value="${existing.nextBillingDate||''}">
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">중요도 (1~5)</label>
-              <input class="form-input" name="importance" type="number" min="1" max="5" value="${existing?.importance??''}">
+              <input class="form-input" name="importance" type="number" min="1" max="5" value="${existing.importance??''}">
             </div>
             <div class="form-group">
               <label class="form-label">대체 난이도 (1~5)</label>
-              <input class="form-input" name="replacementDifficulty" type="number" min="1" max="5" value="${existing?.replacementDifficulty??''}">
+              <input class="form-input" name="replacementDifficulty" type="number" min="1" max="5" value="${existing.replacementDifficulty??''}">
             </div>
           </div>
           <div class="form-group">
             <label class="form-label">목적</label>
             <select class="form-select" name="purpose">
-              <option value="work"         ${existing?.purpose==='work'        ?'selected':''}>💼 업무</option>
-              <option value="study"        ${existing?.purpose==='study'       ?'selected':''}>📚 학습</option>
-              <option value="personal"     ${existing?.purpose==='personal'    ?'selected':''}>🏠 개인</option>
-              <option value="side_project" ${existing?.purpose==='side_project'?'selected':''}>🚀 사이드 프로젝트</option>
+              <option value="work"         ${existing.purpose==='work'        ?'selected':''}>💼 업무</option>
+              <option value="study"        ${existing.purpose==='study'       ?'selected':''}>📚 학습</option>
+              <option value="personal"     ${existing.purpose==='personal'    ?'selected':''}>🏠 개인</option>
+              <option value="side_project" ${existing.purpose==='side_project'?'selected':''}>🚀 사이드 프로젝트</option>
             </select>
           </div>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" id="modal-cancel-btn">취소</button>
-            <button type="submit" class="btn btn-primary">${existing ? '저장' : '추가'}</button>
+            <button type="submit" class="btn btn-primary">저장</button>
           </div>
         </form>
       </div>`;
     document.body.appendChild(overlay);
-    overlay.querySelector('#modal-close-btn').addEventListener('click',  () => overlay.remove());
+    overlay.querySelector('#modal-close-btn').addEventListener('click', () => overlay.remove());
     overlay.querySelector('#modal-cancel-btn').addEventListener('click', () => overlay.remove());
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 
-    // OCR 이미지 업로드
-    overlay.querySelector('#ocr-upload')?.addEventListener('change', async e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const allowed = ['image/jpeg','image/png','image/webp','image/heic','image/heif'];
-      if (!allowed.includes(file.type) && !file.name.match(/\.(jpe?g|png|webp|heic|heif)$/i)) {
-        alert('JPG, PNG, WEBP, HEIC 파일만 업로드할 수 있습니다.');
-        return;
-      }
-      const result = await SubscriptionOCRProvider.extractFromImage(file);
-      applyOCRResult(overlay, result);
-    });
-
-    // 통화 환산 미리보기 (1 USD = 1500 KRW)
     const USD_RATE = 1500;
     function updatePricePreview() {
       const raw = parseFloat(overlay.querySelector('#price-raw-input')?.value) || 0;
@@ -1882,19 +2125,14 @@
       }
       preview.style.color = '';
     }
-    // 무료 플랜 체크 시 가격 입력 비활성화
     overlay.querySelector('#free-plan-check')?.addEventListener('change', e => {
       const priceInput = overlay.querySelector('#price-raw-input');
       const currSelect = overlay.querySelector('#currency-select');
-      if (e.target.checked) {
-        priceInput.value = '0'; priceInput.disabled = true; currSelect.disabled = true;
-      } else {
-        priceInput.value = ''; priceInput.disabled = false; currSelect.disabled = false;
-      }
+      if (e.target.checked) { priceInput.value = '0'; priceInput.disabled = true; currSelect.disabled = true; }
+      else { priceInput.value = ''; priceInput.disabled = false; currSelect.disabled = false; }
       updatePricePreview();
     });
-    // 초기 상태 적용
-    if (existing?.price === 0) {
+    if (existing.price === 0) {
       overlay.querySelector('#price-raw-input').disabled = true;
       overlay.querySelector('#currency-select').disabled = true;
     }
@@ -1902,65 +2140,541 @@
     overlay.querySelector('#currency-select')?.addEventListener('change', updatePricePreview);
     updatePricePreview();
 
-    // 서비스명 자동완성 (service-db)
-    overlay.querySelector('#svc-name-input')?.addEventListener('blur', e => {
-      if (existing) return; // 수정 시에는 건드리지 않음
-      const hint = AppServiceDB.autofill(e.target.value);
-      if (!hint) return;
-      const catSelect = overlay.querySelector('[name="category"]');
-      if (catSelect && !catSelect.value) catSelect.value = hint.category;
-      // 카테고리 자동 채움 안내
-      const note = overlay.querySelector('#autofill-note') || document.createElement('p');
-      note.id = 'autofill-note';
-      note.className = 'text-xs text-muted';
-      note.style.marginBottom = '8px';
-      note.textContent = `카테고리가 "${AppConfig.CATEGORIES[hint.category]?.label || hint.category}"로 자동 설정되었습니다.`;
-      overlay.querySelector('form')?.prepend(note);
-    });
-
     overlay.querySelector('#sub-form').addEventListener('submit', e => {
       e.preventDefault();
       const fd = new FormData(e.target);
       const now = new Date().toISOString().slice(0, 10);
-      const USD_RATE = 1500;
-      const isFree   = overlay.querySelector('#free-plan-check')?.checked;
+      const isFree = overlay.querySelector('#free-plan-check')?.checked;
       const rawPrice = isFree ? 0 : (parseFloat(fd.get('priceRaw')) || 0);
       const currency = fd.get('currency') || 'KRW';
       const priceKRW = isFree ? 0 : (currency === 'USD' ? Math.round(rawPrice * USD_RATE) : Math.round(rawPrice));
       const data = {
-        id:                  existing?.id || ('sub_' + Date.now()),
-        serviceId:           existing?.serviceId || fd.get('serviceName').toLowerCase().replace(/\s+/g, '_'),
-        planId:              existing?.planId    || (fd.get('serviceName').toLowerCase().replace(/\s+/g, '_') + '_plan'),
-        serviceName:         fd.get('serviceName'),
-        planName:            fd.get('planName') || 'Standard',
-        price:               priceKRW,
-        currency:            'KRW',   // 내부는 항상 KRW로 통일
-        taxIncluded:         true,
-        billingCycle:        fd.get('billingCycle'),
-        nextBillingDate:     fd.get('nextBillingDate') || now,
-        committedUntil:      existing?.committedUntil || null,
-        seats:               1,
-        category:            fd.get('category'),
-        capabilityTags:      existing?.capabilityTags || [],
-        purpose:             fd.get('purpose'),
-        importance:          fd.get('importance') ? parseInt(fd.get('importance')) : null,
+        id: existing.id, serviceId: existing.serviceId, planId: existing.planId,
+        serviceName: fd.get('serviceName'), planName: fd.get('planName') || 'Standard',
+        price: priceKRW, currency: 'KRW', taxIncluded: true,
+        billingCycle: fd.get('billingCycle'), nextBillingDate: fd.get('nextBillingDate') || now,
+        committedUntil: existing.committedUntil || null, seats: 1, category: fd.get('category'),
+        capabilityTags: existing.capabilityTags || [], purpose: fd.get('purpose'),
+        importance: fd.get('importance') ? parseInt(fd.get('importance')) : null,
         replacementDifficulty: fd.get('replacementDifficulty') ? parseInt(fd.get('replacementDifficulty')) : null,
-        collectible:         true,
-        keepUntil:           existing?.keepUntil || null,
-        createdAt:           existing?.createdAt || now,
-        updatedAt:           now,
+        collectible: true, keepUntil: existing.keepUntil || null,
+        createdAt: existing.createdAt || now, updatedAt: now,
       };
-      if (existing) {
-        const idx = state.subscriptions.findIndex(s => s.id === subId);
-        if (idx >= 0) state.subscriptions[idx] = data;
-      } else {
-        state.subscriptions.push(data);
-      }
-      AppStore.save(state);
-      refreshApp();
-      navigate('subscriptions');
-      overlay.remove();
+      const idx = state.subscriptions.findIndex(s => s.id === subId);
+      if (idx >= 0) state.subscriptions[idx] = data;
+      AppStore.save(state); refreshApp(); navigate('subscriptions'); overlay.remove();
     });
+  }
+
+  /* ── 구독 추가 모달 (v1.42: 카드형 UI) ── */
+  function openSubAddModal(state) {
+    // 모달 선택 상태
+    let selectedDbEntry = null; // AppServiceDB 엔트리
+    let selectedPlan    = null; // { id, name, priceKRW, billingCycle }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    const modalEl = document.createElement('div');
+    modalEl.className = 'modal sub-add-modal';
+    overlay.appendChild(modalEl);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+    /* ── 스텝 1: 서비스 선택 ── */
+    function renderStep1() {
+      modalEl.innerHTML = '';
+
+      // 헤더
+      const hdr = document.createElement('div');
+      hdr.className = 'modal-header';
+      hdr.innerHTML = `<span class="modal-title">구독 추가</span><button class="modal-close" id="add-close">✕</button>`;
+      modalEl.appendChild(hdr);
+      hdr.querySelector('#add-close').addEventListener('click', () => overlay.remove());
+
+      // 스텝 인디케이터
+      const steps = document.createElement('div');
+      steps.className = 'add-steps';
+      steps.innerHTML = `
+        <div class="add-step active"><span class="step-num">1</span><span class="step-label">서비스 선택</span></div>
+        <div class="add-step-line"></div>
+        <div class="add-step"><span class="step-num">2</span><span class="step-label">요금제</span></div>
+        <div class="add-step-line"></div>
+        <div class="add-step"><span class="step-num">3</span><span class="step-label">결제 정보</span></div>`;
+      modalEl.appendChild(steps);
+
+      // OCR 영역
+      const ocrBanner = document.createElement('div');
+      ocrBanner.className = 'ocr-banner';
+      ocrBanner.innerHTML = `
+        <span style="font-size:1.1rem">📷</span>
+        <div style="flex:1"><div class="text-sm font-bold">구독 화면 캡처로 자동 불러오기</div>
+          <div class="text-xs text-muted">결제 문자, 앱 캡처를 올리면 자동으로 채워줘요 (JPG·PNG)</div></div>
+        <label class="btn btn-secondary btn-sm" style="cursor:pointer;white-space:nowrap">사진 올리기
+          <input type="file" id="ocr-upload" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style="display:none"></label>`;
+      modalEl.appendChild(ocrBanner);
+
+      // 검색창 + 자동완성
+      const searchWrap = document.createElement('div');
+      searchWrap.style.cssText = 'position:relative;margin-bottom:14px;';
+      searchWrap.innerHTML = `
+        <input class="form-input" id="svc-search" placeholder="서비스 검색 (예: 넷플, Netflix, 챗...)"
+          style="padding-left:36px;font-size:0.9rem" autocomplete="off">
+        <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--c-muted);font-size:0.95rem;pointer-events:none">🔍</span>
+        <div id="autocomplete-list" class="autocomplete-list" style="display:none"></div>`;
+      modalEl.appendChild(searchWrap);
+
+      // 빠른 선택 카드 그리드 (자주 쓰는 서비스)
+      const FEATURED = ['netflix','youtube_premium','spotify','chatgpt','notion','claude',
+                        'figma','coupang_rocket','disney','apple_music','slack','cursor'];
+      const featuredEntries = AppServiceDB.SERVICE_DB.filter(e =>
+        FEATURED.some(fid => e.ids.includes(fid))
+      );
+
+      const gridLabel = document.createElement('div');
+      gridLabel.className = 'text-xs text-muted';
+      gridLabel.style.cssText = 'margin-bottom:8px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;';
+      gridLabel.textContent = '자주 사용하는 서비스';
+      modalEl.appendChild(gridLabel);
+
+      const grid = document.createElement('div');
+      grid.className = 'svc-select-grid';
+      grid.id = 'svc-grid';
+      modalEl.appendChild(grid);
+
+      function renderGrid(entries) {
+        grid.innerHTML = '';
+        if (!entries.length) {
+          grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--c-muted);font-size:0.85rem">
+            검색 결과가 없어요. 아래 <strong>직접 입력</strong>으로 추가할 수 있어요.</div>`;
+          return;
+        }
+        entries.forEach(entry => {
+          const card = document.createElement('div');
+          card.className = 'svc-select-card';
+          const isSelected = selectedDbEntry && selectedDbEntry.ids[0] === entry.ids[0];
+          if (isSelected) card.classList.add('selected');
+          card.innerHTML = `
+            <span class="svc-card-icon">${entry.icon || '📦'}</span>
+            <span class="svc-card-name">${entry.name}</span>
+            <span class="svc-card-cat">${AppConfig.CATEGORIES[entry.category]?.label || entry.category}</span>`;
+          card.addEventListener('click', () => {
+            selectedDbEntry = entry;
+            // 모든 카드 선택 해제 후 현재만 선택
+            grid.querySelectorAll('.svc-select-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+          });
+          grid.appendChild(card);
+        });
+      }
+      // renderGridWithBtn이 아래서 초기 렌더링하므로 여기서는 호출하지 않음
+
+      // 자동완성 드롭다운 로직
+      const searchInput = modalEl.querySelector('#svc-search');
+      const acList = modalEl.querySelector('#autocomplete-list');
+      let acTimeout = null;
+
+      // nextBtn은 아래에서 선언되므로 참조를 미리 잡아 둠
+      let _nextBtn = null;
+      function _bindGridCards() {
+        grid.querySelectorAll('.svc-select-card').forEach(card => {
+          if (!card.dataset._bound) {
+            card.dataset._bound = '1';
+            card.addEventListener('click', () => {
+              if (_nextBtn) _nextBtn.disabled = !selectedDbEntry;
+            });
+          }
+        });
+        if (_nextBtn) _nextBtn.disabled = !selectedDbEntry;
+      }
+
+      searchInput.addEventListener('input', () => {
+        clearTimeout(acTimeout);
+        const q = searchInput.value.trim();
+        if (!q) {
+          acList.style.display = 'none';
+          renderGrid(featuredEntries);
+          gridLabel.textContent = '자주 사용하는 서비스';
+          _bindGridCards();
+          return;
+        }
+        acTimeout = setTimeout(() => {
+          const results = AppServiceDB.searchServices(q, 8);
+          renderGrid(results);
+          gridLabel.textContent = results.length ? `"${q}" 검색 결과 (${results.length}개)` : '검색 결과';
+          _bindGridCards();
+          // 드롭다운 (5개까지)
+          if (results.length > 0) {
+            acList.innerHTML = '';
+            results.slice(0, 5).forEach(entry => {
+              const item = document.createElement('div');
+              item.className = 'autocomplete-item';
+              item.innerHTML = `<span style="font-size:1rem;flex-shrink:0">${entry.icon||'📦'}</span>
+                <span style="flex:1;font-size:0.87rem;font-weight:600">${entry.name}</span>
+                <span style="font-size:0.72rem;color:var(--c-muted)">${AppConfig.CATEGORIES[entry.category]?.label||entry.category}</span>`;
+              item.addEventListener('mousedown', e => {
+                e.preventDefault();
+                selectedDbEntry = entry;
+                searchInput.value = entry.name;
+                acList.style.display = 'none';
+                renderGrid([entry]);
+                gridLabel.textContent = `"${entry.name}" 선택됨`;
+                // 카드 선택 상태 활성화 + nextBtn 활성화
+                setTimeout(() => {
+                  grid.querySelector('.svc-select-card')?.classList.add('selected');
+                  _bindGridCards();
+                }, 50);
+              });
+              acList.appendChild(item);
+            });
+            acList.style.display = 'block';
+          } else {
+            acList.style.display = 'none';
+          }
+        }, 150);
+      });
+      searchInput.addEventListener('blur', () => {
+        setTimeout(() => { acList.style.display = 'none'; }, 200);
+      });
+      searchInput.addEventListener('focus', () => {
+        if (searchInput.value.trim()) searchInput.dispatchEvent(new Event('input'));
+      });
+
+      // OCR 업로드
+      ocrBanner.querySelector('#ocr-upload')?.addEventListener('change', async e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const allowed = ['image/jpeg','image/png','image/webp','image/heic','image/heif'];
+        if (!allowed.includes(file.type) && !file.name.match(/\.(jpe?g|png|webp|heic|heif)$/i)) {
+          alert('JPG, PNG, WEBP, HEIC 파일만 업로드할 수 있습니다.'); return;
+        }
+        const result = await SubscriptionOCRProvider.extractFromImage(file);
+        if (result?.serviceName) {
+          searchInput.value = result.serviceName;
+          searchInput.dispatchEvent(new Event('input'));
+        }
+      });
+
+      // 하단 버튼
+      const footer = document.createElement('div');
+      footer.className = 'form-actions';
+      footer.style.marginTop = '16px';
+      footer.innerHTML = `
+        <button class="btn btn-ghost btn-sm" id="add-manual">✏️ 직접 입력하기</button>
+        <button class="btn btn-primary" id="add-next" disabled>다음 →</button>`;
+      modalEl.appendChild(footer);
+
+      const nextBtn = footer.querySelector('#add-next');
+      _nextBtn = nextBtn;  // 자동완성 바인딩용
+
+      // renderGrid 재정의: 카드 클릭 시 nextBtn 상태 업데이트 포함
+      function renderGridWithBtn(entries) {
+        renderGrid(entries);
+        _bindGridCards();
+      }
+
+      // 초기 렌더링
+      renderGridWithBtn(featuredEntries);
+
+      // 검색 입력 시에도 그리드 카드 버튼 바인딩 보완
+      searchInput.addEventListener('input', () => {
+        setTimeout(() => { _bindGridCards(); }, 200);
+      });
+
+      footer.querySelector('#add-manual').addEventListener('click', () => renderStepManual());
+      nextBtn.addEventListener('click', () => {
+        if (!selectedDbEntry) return;
+        renderStep2();
+      });
+    }
+
+    /* ── 스텝 2: 요금제 선택 ── */
+    function renderStep2() {
+      modalEl.innerHTML = '';
+
+      const hdr = document.createElement('div');
+      hdr.className = 'modal-header';
+      hdr.innerHTML = `
+        <button class="btn btn-ghost btn-sm" id="step2-back" style="padding:4px 8px">← 서비스</button>
+        <span class="modal-title">${selectedDbEntry.icon||'📦'} ${selectedDbEntry.name}</span>
+        <button class="modal-close" id="step2-close">✕</button>`;
+      modalEl.appendChild(hdr);
+      hdr.querySelector('#step2-close').addEventListener('click', () => overlay.remove());
+      hdr.querySelector('#step2-back').addEventListener('click', () => renderStep1());
+
+      // 스텝 인디케이터
+      const steps = document.createElement('div');
+      steps.className = 'add-steps';
+      steps.innerHTML = `
+        <div class="add-step done"><span class="step-num">✓</span><span class="step-label">서비스</span></div>
+        <div class="add-step-line active"></div>
+        <div class="add-step active"><span class="step-num">2</span><span class="step-label">요금제</span></div>
+        <div class="add-step-line"></div>
+        <div class="add-step"><span class="step-num">3</span><span class="step-label">결제 정보</span></div>`;
+      modalEl.appendChild(steps);
+
+      const plans = selectedDbEntry.plans || [];
+
+      if (plans.length === 0) {
+        // 요금제 데이터 없음 → 직접 입력 안내 후 step3으로
+        const note = document.createElement('div');
+        note.style.cssText = 'background:rgba(91,127,255,0.06);border:1px solid rgba(91,127,255,0.15);border-radius:var(--r-md);padding:14px 16px;margin-bottom:16px;font-size:0.85rem;color:var(--c-muted);line-height:1.6';
+        note.innerHTML = `<strong style="color:var(--c-text)">${selectedDbEntry.name}</strong>의 요금제 정보가 아직 없어요.<br>다음 단계에서 직접 입력해 주세요.`;
+        modalEl.appendChild(note);
+        const footer = document.createElement('div');
+        footer.className = 'form-actions';
+        footer.innerHTML = `<button class="btn btn-ghost btn-sm" id="s2-back">← 뒤로</button>
+          <button class="btn btn-primary" id="s2-skip">직접 입력 →</button>`;
+        modalEl.appendChild(footer);
+        footer.querySelector('#s2-back').addEventListener('click', () => renderStep1());
+        footer.querySelector('#s2-skip').addEventListener('click', () => renderStep3());
+        return;
+      }
+
+      const label = document.createElement('div');
+      label.className = 'text-xs text-muted';
+      label.style.cssText = 'margin-bottom:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;';
+      label.textContent = '요금제를 선택하세요';
+      modalEl.appendChild(label);
+
+      const planList = document.createElement('div');
+      planList.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-bottom:16px;';
+      modalEl.appendChild(planList);
+
+      plans.forEach(plan => {
+        const card = document.createElement('div');
+        card.className = 'plan-select-card';
+        if (selectedPlan && selectedPlan.id === plan.id) card.classList.add('selected');
+        const priceText = plan.priceKRW === 0 ? '무료' : plan.priceKRW ? `₩${plan.priceKRW.toLocaleString()}/${plan.billingCycle === 'yearly' ? '년' : '월'}` : '가격 미정';
+        card.innerHTML = `
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="plan-radio"></div>
+            <div style="flex:1">
+              <div style="font-size:0.9rem;font-weight:700">${plan.name}</div>
+              ${plan.description ? `<div class="text-xs text-muted" style="margin-top:2px">${plan.description}</div>` : ''}
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:0.95rem;font-weight:800;color:var(--c-accent)">${priceText}</div>
+            </div>
+          </div>`;
+        card.addEventListener('click', () => {
+          selectedPlan = plan;
+          planList.querySelectorAll('.plan-select-card').forEach(c => c.classList.remove('selected'));
+          card.classList.add('selected');
+          footer.querySelector('#s2-next').disabled = false;
+        });
+        planList.appendChild(card);
+      });
+
+      const footer = document.createElement('div');
+      footer.className = 'form-actions';
+      footer.innerHTML = `
+        <button class="btn btn-ghost btn-sm" id="s2-back">← 뒤로</button>
+        <button class="btn btn-ghost btn-sm" id="s2-manual">요금제 직접 입력</button>
+        <button class="btn btn-primary" id="s2-next" ${selectedPlan ? '' : 'disabled'}>다음 →</button>`;
+      modalEl.appendChild(footer);
+      footer.querySelector('#s2-back').addEventListener('click', () => renderStep1());
+      footer.querySelector('#s2-manual').addEventListener('click', () => { selectedPlan = null; renderStep3(); });
+      footer.querySelector('#s2-next').addEventListener('click', () => { if (selectedPlan) renderStep3(); });
+    }
+
+    /* ── 스텝 3: 결제 정보 입력 ── */
+    function renderStep3() {
+      modalEl.innerHTML = '';
+      const USD_RATE = 1500;
+
+      const hdr = document.createElement('div');
+      hdr.className = 'modal-header';
+      hdr.innerHTML = `
+        <button class="btn btn-ghost btn-sm" id="step3-back" style="padding:4px 8px">← 요금제</button>
+        <span class="modal-title">${selectedDbEntry?.icon||'📦'} ${selectedDbEntry?.name||'직접 입력'}</span>
+        <button class="modal-close" id="step3-close">✕</button>`;
+      modalEl.appendChild(hdr);
+      hdr.querySelector('#step3-close').addEventListener('click', () => overlay.remove());
+      hdr.querySelector('#step3-back').addEventListener('click', () => {
+        if (selectedDbEntry) renderStep2(); else renderStep1();
+      });
+
+      const steps = document.createElement('div');
+      steps.className = 'add-steps';
+      steps.innerHTML = `
+        <div class="add-step done"><span class="step-num">✓</span><span class="step-label">서비스</span></div>
+        <div class="add-step-line active"></div>
+        <div class="add-step done"><span class="step-num">✓</span><span class="step-label">요금제</span></div>
+        <div class="add-step-line active"></div>
+        <div class="add-step active"><span class="step-num">3</span><span class="step-label">결제 정보</span></div>`;
+      modalEl.appendChild(steps);
+
+      // 자동 채워진 값
+      const autoPrice = selectedPlan?.priceKRW ?? null;
+      const autoCycle = selectedPlan?.billingCycle || 'monthly';
+      const autoName  = selectedDbEntry?.name || '';
+      const autoPlan  = selectedPlan?.name || '';
+      const autoCat   = selectedDbEntry?.category || Object.keys(AppConfig.CATEGORIES)[0];
+
+      const form = document.createElement('form');
+      form.id = 'sub-form';
+      form.innerHTML = `
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">서비스명 *</label>
+            <input class="form-input" name="serviceName" required value="${autoName}" placeholder="예: Netflix, Spotify" id="svc-name-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">요금제명</label>
+            <input class="form-input" name="planName" value="${autoPlan}" placeholder="예: 스탠다드, Pro">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">가격 *
+              ${selectedPlan ? `<span class="text-xs" style="color:var(--c-green);margin-left:6px">자동 입력됨 — 수정 가능</span>` : ''}
+            </label>
+            <div style="display:flex;gap:6px">
+              <input class="form-input" name="priceRaw" type="number" required
+                value="${autoPrice !== null ? autoPrice : ''}"
+                placeholder="금액 (0 = 무료)" style="flex:1" id="price-raw-input" min="0"
+                ${autoPrice === 0 ? 'disabled' : ''}>
+              <select class="form-select" name="currency" id="currency-select" style="width:80px"
+                ${autoPrice === 0 ? 'disabled' : ''}>
+                <option value="KRW" selected>KRW</option>
+                <option value="USD">USD</option>
+              </select>
+            </div>
+            <div id="price-preview" class="text-xs text-muted" style="margin-top:4px"></div>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer;font-size:0.78rem;color:var(--c-muted)">
+              <input type="checkbox" id="free-plan-check" ${autoPrice === 0 ? 'checked' : ''}>
+              무료 플랜으로 등록 (가격 0원)
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="form-label">결제 주기</label>
+            <select class="form-select" name="billingCycle">
+              <option value="monthly" ${autoCycle === 'monthly' ? 'selected' : ''}>월간</option>
+              <option value="yearly"  ${autoCycle === 'yearly'  ? 'selected' : ''}>연간</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">카테고리</label>
+            <select class="form-select" name="category">
+              ${Object.entries(AppConfig.CATEGORIES).map(([k,v])=>`<option value="${k}" ${autoCat===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">다음 결제일</label>
+            <input class="form-input" name="nextBillingDate" type="date" value="">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">중요도 (1~5)</label>
+            <input class="form-input" name="importance" type="number" min="1" max="5"
+              value="${selectedDbEntry?.importanceHint || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">대체 난이도 (1~5)</label>
+            <input class="form-input" name="replacementDifficulty" type="number" min="1" max="5"
+              value="${selectedDbEntry?.replacementHint || ''}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">목적</label>
+          <select class="form-select" name="purpose">
+            <option value="work">💼 업무</option>
+            <option value="study">📚 학습</option>
+            <option value="personal" selected>🏠 개인</option>
+            <option value="side_project">🚀 사이드 프로젝트</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="s3-cancel">취소</button>
+          <button type="submit" class="btn btn-primary">구독 추가 ✓</button>
+        </div>`;
+      modalEl.appendChild(form);
+      form.querySelector('#s3-cancel').addEventListener('click', () => overlay.remove());
+
+      function updatePricePreview() {
+        const raw = parseFloat(form.querySelector('#price-raw-input')?.value) || 0;
+        const cur = form.querySelector('#currency-select')?.value;
+        const preview = form.querySelector('#price-preview');
+        const isFree = form.querySelector('#free-plan-check')?.checked;
+        if (!preview) return;
+        if (isFree) { preview.textContent = '무료 플랜 — 가격 분석에서 제외됩니다'; preview.style.color = 'var(--c-green)'; return; }
+        if (!raw) { preview.textContent = ''; return; }
+        if (cur === 'USD') {
+          preview.textContent = `= ₩${Math.round(raw * USD_RATE).toLocaleString()} (1달러 = 1,500원 기준)`;
+        } else {
+          preview.textContent = `≈ $${(raw / USD_RATE).toFixed(2)}`;
+        }
+        preview.style.color = '';
+      }
+      form.querySelector('#free-plan-check')?.addEventListener('change', e => {
+        const priceInput = form.querySelector('#price-raw-input');
+        const currSelect = form.querySelector('#currency-select');
+        if (e.target.checked) { priceInput.value = '0'; priceInput.disabled = true; currSelect.disabled = true; }
+        else { priceInput.value = ''; priceInput.disabled = false; currSelect.disabled = false; }
+        updatePricePreview();
+      });
+      form.querySelector('#price-raw-input')?.addEventListener('input', updatePricePreview);
+      form.querySelector('#currency-select')?.addEventListener('change', updatePricePreview);
+      updatePricePreview();
+
+      form.addEventListener('submit', e => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const now = new Date().toISOString().slice(0, 10);
+        const isFree = form.querySelector('#free-plan-check')?.checked;
+        const rawPrice = isFree ? 0 : (parseFloat(fd.get('priceRaw')) || 0);
+        const currency = fd.get('currency') || 'KRW';
+        const priceKRW = isFree ? 0 : (currency === 'USD' ? Math.round(rawPrice * USD_RATE) : Math.round(rawPrice));
+        const svcName = fd.get('serviceName').trim();
+        const dbInfo = selectedDbEntry || AppServiceDB.autofill(svcName) || {};
+        const suggestedId = dbInfo.suggestedServiceId || dbInfo.ids?.[0];
+        const serviceId = suggestedId || svcName.toLowerCase().replace(/\s+/g, '_');
+        const data = {
+          id:            'sub_' + Date.now(),
+          serviceId,
+          planId:        selectedPlan?.id ? (serviceId + '_' + selectedPlan.id) : (serviceId + '_plan'),
+          serviceName:   svcName,
+          planName:      fd.get('planName') || selectedPlan?.name || 'Standard',
+          price:         priceKRW,
+          currency:      'KRW',
+          taxIncluded:   true,
+          billingCycle:  fd.get('billingCycle'),
+          nextBillingDate: fd.get('nextBillingDate') || now,
+          committedUntil: null, seats: 1,
+          category:      fd.get('category'),
+          capabilityTags: dbInfo.capabilityTags || dbInfo.tags || [],
+          purpose:       fd.get('purpose'),
+          importance:    fd.get('importance') ? parseInt(fd.get('importance')) : null,
+          replacementDifficulty: fd.get('replacementDifficulty') ? parseInt(fd.get('replacementDifficulty')) : null,
+          collectible: true, keepUntil: null, createdAt: now, updatedAt: now,
+        };
+        state.subscriptions.push(data);
+        AppStore.save(state); refreshApp(); navigate('subscriptions'); overlay.remove();
+        showToast(`✅ ${data.serviceName} 구독이 추가되었습니다`, 'green');
+      });
+    }
+
+    /* ── 직접 입력 (서비스 없는 경우 fallback) ── */
+    function renderStepManual() {
+      selectedDbEntry = null;
+      selectedPlan    = null;
+      renderStep3();
+    }
+
+    renderStep1();
+  }
+
+  /* ─── 토스트 알림 헬퍼 ─── */
+  function showToast(msg, type) {
+    const toast = document.createElement('div');
+    const color = type === 'green' ? 'var(--c-green)' : type === 'red' ? 'var(--c-red)' : 'var(--c-accent)';
+    toast.style.cssText = `position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--c-surface);border:1px solid ${color};border-radius:var(--r-md);padding:10px 20px;font-size:0.85rem;box-shadow:var(--shadow-md);z-index:9999;color:${color};white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis;`;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
   }
 
   function deleteSub(subId) {
@@ -1982,7 +2696,7 @@
     );
     AppStore.save(state);
     refreshApp();
-    alert('😴 ' + AppConfig.SNOOZE_DAYS + '일간 해지 알림이 중단됩니다.');
+    showToast('😴 ' + AppConfig.SNOOZE_DAYS + '일간 해지 알림이 중단됩니다.', 'accent');
   }
 
   /* ══════════════════════════════════════════
@@ -2310,20 +3024,51 @@
         billingMap[day].push(sub);
       });
 
-      // ── 헤더 ──
+      // ── 헤더 (v1.42: 연도/월 직접 선택 + 오늘 버튼) ──
       const header = document.createElement('div');
-      header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;';
+      header.className = 'cal-header';
+      const todayYear  = parseInt(TODAY.slice(0, 4));
+      const todayMonth = parseInt(TODAY.slice(5, 7));
+      // 연도 범위: 현재 연도 ±10
+      const yearMin = todayYear - 10;
+      const yearMax = todayYear + 10;
+      const yearOptions = [];
+      for (let y = yearMin; y <= yearMax; y++) {
+        yearOptions.push(`<option value="${y}" ${y === viewYear ? 'selected' : ''}>${y}년</option>`);
+      }
+      const monthOptions = MONTH_NAMES.map((m, i) =>
+        `<option value="${i+1}" ${(i+1) === viewMonth ? 'selected' : ''}>${m}</option>`
+      ).join('');
       header.innerHTML = `
-        <button class="btn btn-secondary btn-sm" id="cal-prev">← 이전</button>
-        <span style="font-size:1.1rem;font-weight:800;letter-spacing:-0.02em">${viewYear}년 ${MONTH_NAMES[viewMonth-1]}</span>
-        <button class="btn btn-secondary btn-sm" id="cal-next">다음 →</button>`;
+        <button class="btn btn-secondary btn-sm" id="cal-prev" aria-label="이전 달">← 이전</button>
+        <div class="cal-nav-center">
+          <select class="cal-year-sel form-select" id="cal-year-sel">${yearOptions.join('')}</select>
+          <select class="cal-month-sel form-select" id="cal-month-sel">${monthOptions}</select>
+          <button class="btn btn-secondary btn-sm cal-today-btn" id="cal-today"
+            style="${(viewYear===todayYear&&viewMonth===todayMonth)?'opacity:0.45;cursor:default;':''}">오늘</button>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="cal-next" aria-label="다음 달">다음 →</button>`;
       container.appendChild(header);
       header.querySelector('#cal-prev').addEventListener('click', () => {
         viewMonth--; if (viewMonth < 1) { viewMonth = 12; viewYear--; }
+        if (viewYear < yearMin) { viewYear = yearMin; viewMonth = 1; }
         renderCalendar();
       });
       header.querySelector('#cal-next').addEventListener('click', () => {
         viewMonth++; if (viewMonth > 12) { viewMonth = 1; viewYear++; }
+        if (viewYear > yearMax) { viewYear = yearMax; viewMonth = 12; }
+        renderCalendar();
+      });
+      header.querySelector('#cal-year-sel').addEventListener('change', e => {
+        viewYear = parseInt(e.target.value);
+        renderCalendar();
+      });
+      header.querySelector('#cal-month-sel').addEventListener('change', e => {
+        viewMonth = parseInt(e.target.value);
+        renderCalendar();
+      });
+      header.querySelector('#cal-today').addEventListener('click', () => {
+        viewYear = todayYear; viewMonth = todayMonth;
         renderCalendar();
       });
 

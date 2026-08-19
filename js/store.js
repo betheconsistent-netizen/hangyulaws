@@ -20,6 +20,7 @@
       peerReports: [],
       cohortStats: [],
       notifications: [],
+      support: { tickets: [] },
       settings: {
         timezone: CFG.DEFAULT_TIMEZONE,
         consents: { c1: false, c2: false, c3: false },
