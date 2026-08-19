@@ -1233,10 +1233,12 @@
           <div class="rec-card-header">
             <span style="font-size:1.3rem">${svcIcon(ri.serviceId)}</span>
             <span class="rec-card-name">${ri.serviceName}</span>
+            ${ri.recommendation.isPartialTracking ? `<span class="badge badge-yellow" style="font-size:0.65rem;margin-left:6px" title="수동 입력 기반 분석 — 자동 추적 대비 정확도가 낮을 수 있습니다">일부 추적</span>` : ''}
             ${monthly > 0 ? `<span class="text-muted text-sm" style="margin-left:auto">${krw(monthly)}/월</span>` : ''}
             ${g.label === '해지 검토' ? `<span class="savings-chip">월 ${krw(monthly)} 절감 가능</span>` : ''}
           </div>
           <ul class="rec-reasons">${ri.reasons.map(r=>`<li>${r}</li>`).join('')}</ul>
+          ${ri.recommendation.isPartialTracking ? `<p class="partial-tracking-note">📋 수동 입력 기반 분석이므로 정확도가 낮을 수 있습니다. 브라우저 확장 또는 앱 연결 시 더 정확한 분석이 가능합니다.</p>` : ''}
           ${ri.planSwitchSuggestions?.length ? ri.planSwitchSuggestions.map(s => {
             const res = s.switchResult;
             if (!res.hasExpectedMembers && res.breakEvenMembers) {

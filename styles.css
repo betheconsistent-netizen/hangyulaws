@@ -1254,3 +1254,15 @@ input, select, textarea { font-family: inherit; }
   .cal-year-sel    { min-width: 70px; }
   .cal-month-sel   { min-width: 58px; }
 }
+
+/* ── 일부 추적 분석 경고 노트 ── */
+.partial-tracking-note {
+  font-size: 0.73rem;
+  color: var(--c-yellow);
+  background: rgba(245,166,35,0.06);
+  border: 1px solid rgba(245,166,35,0.2);
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+  margin-top: 8px;
+  line-height: 1.5;
+}
