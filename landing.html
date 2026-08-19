@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SubValue — 구독 가치 분석</title>
+  <meta name="description" content="내 구독이 정말 돈 값을 하는지 데이터로 확인하세요. 사용량 기반 구독 가치 분석 서비스.">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0b0d14;
+      --surface:  #13161f;
+      --surface2: #1c2030;
+      --border:   #2a2f45;
+      --text:     #e8edf5;
+      --text2:    #b4bccc;
+      --muted:    #6b7490;
+      --accent:   #5b7fff;
+      --accent2:  #9b7dff;
+      --green:    #2ecc8a;
+      --red:      #f06060;
+      --yellow:   #f5a623;
+    }
+
+    html { font-size: 16px; scroll-behavior: smooth; }
+    body {
+      font-family: 'Pretendard Variable', 'Pretendard', -apple-system,
+                   BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; border: none; }
+
+    /* ── 네브바 ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 60px;
+      background: rgba(11,13,20,0.85);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center;
+      padding: 0 max(24px, calc((100vw - 1100px) / 2));
+      z-index: 100;
+      gap: 16px;
+    }
+    .nav-logo {
+      font-size: 1.15rem; font-weight: 900;
+      background: linear-gradient(135deg, #5b7fff, #9b7dff);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; letter-spacing: -0.02em;
+      margin-right: auto;
+    }
+    .nav-badge {
+      font-size: 0.68rem; padding: 2px 8px;
+      background: rgba(91,127,255,0.15);
+      border: 1px solid rgba(91,127,255,0.3);
+      border-radius: 20px; color: var(--accent);
+      font-weight: 600;
+    }
+    .btn-demo {
+      padding: 8px 20px;
+      background: linear-gradient(135deg, #5b7fff, #9b7dff);
+      color: #fff; border-radius: 8px;
+      font-size: 0.875rem; font-weight: 600;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .btn-demo:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    /* ── 섹션 공통 ── */
+    section {
+      padding: 96px max(24px, calc((100vw - 1100px) / 2));
+    }
+    section:first-of-type { padding-top: 140px; }
+
+    /* ── 히어로 ── */
+    .hero {
+      text-align: center;
+      padding-top: 140px;
+      padding-bottom: 80px;
+    }
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 0.8rem; font-weight: 600;
+      color: var(--accent); letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: rgba(91,127,255,0.1);
+      border: 1px solid rgba(91,127,255,0.25);
+      padding: 5px 14px; border-radius: 20px;
+      margin-bottom: 24px;
+    }
+    .hero-title {
+      font-size: clamp(2.2rem, 6vw, 4rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 1.12;
+      margin-bottom: 24px;
+    }
+    .hero-title .grad {
+      background: linear-gradient(135deg, #5b7fff 30%, #9b7dff);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: 1.1rem; color: var(--text2);
+      max-width: 580px; margin: 0 auto 40px;
+      line-height: 1.75;
+    }
+    .hero-cta {
+      display: flex; justify-content: center; gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn-primary-lg {
+      padding: 14px 32px;
+      background: linear-gradient(135deg, #5b7fff, #9b7dff);
+      color: #fff; border-radius: 12px;
+      font-size: 1rem; font-weight: 700;
+      transition: all 0.2s;
+      box-shadow: 0 8px 32px rgba(91,127,255,0.3);
+    }
+    .btn-primary-lg:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(91,127,255,0.45); }
+    .btn-secondary-lg {
+      padding: 14px 32px;
+      background: var(--surface2);
+      color: var(--text2); border-radius: 12px;
+      font-size: 1rem; font-weight: 600;
+      border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+    .btn-secondary-lg:hover { background: var(--surface); border-color: var(--accent); color: var(--text); }
+
+    .hero-note {
+      margin-top: 16px; font-size: 0.78rem; color: var(--muted);
+    }
+
+    /* ── 스크린샷 목업 ── */
+    .mockup-wrap {
+      max-width: 880px; margin: 60px auto 0;
+      position: relative;
+    }
+    .mockup-glow {
+      position: absolute; inset: -60px;
+      background: radial-gradient(ellipse at center, rgba(91,127,255,0.12), transparent 70%);
+      pointer-events: none;
+    }
+    .mockup-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+      position: relative;
+    }
+    .mockup-topbar {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 20px;
+    }
+    .mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* 목업 대시보드 미니 */
+    .mockup-summary {
+      display: grid; grid-template-columns: repeat(4,1fr); gap: 10px;
+      margin-bottom: 16px;
+    }
+    .mockup-scard {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 14px;
+    }
+    .mockup-slabel { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; }
+    .mockup-svalue { font-size: 1.2rem; font-weight: 800; letter-spacing: -0.02em; }
+
+    .mockup-list { display: flex; flex-direction: column; gap: 7px; }
+    .mockup-row {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface2); border-radius: 9px;
+      padding: 10px 14px; border: 1px solid var(--border);
+    }
+    .mockup-icon { font-size: 1.2rem; }
+    .mockup-info { flex: 1; }
+    .mockup-name { font-size: 0.82rem; font-weight: 600; }
+    .mockup-plan { font-size: 0.68rem; color: var(--muted); }
+    .mockup-badge {
+      font-size: 0.65rem; font-weight: 700;
+      padding: 2px 8px; border-radius: 10px;
+    }
+    .b-red    { background: rgba(240,96,96,0.12);   color: var(--red);    border: 1px solid rgba(240,96,96,0.25); }
+    .b-green  { background: rgba(46,204,138,0.12);  color: var(--green);  border: 1px solid rgba(46,204,138,0.25); }
+    .b-yellow { background: rgba(245,166,35,0.12);  color: var(--yellow); border: 1px solid rgba(245,166,35,0.25); }
+    .b-gray   { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+    .mockup-price { font-size: 0.82rem; font-weight: 700; color: var(--text2); white-space: nowrap; }
+
+    /* ── 숫자 하이라이트 ── */
+    .stats-row {
+      display: grid; grid-template-columns: repeat(3,1fr); gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 16px; overflow: hidden;
+      margin-bottom: 80px;
+    }
+    .stat-item {
+      background: var(--surface);
+      padding: 32px 24px; text-align: center;
+    }
+    .stat-num {
+      font-size: 2.2rem; font-weight: 900;
+      background: linear-gradient(135deg, #5b7fff, #9b7dff);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; letter-spacing: -0.03em;
+      margin-bottom: 6px;
+    }
+    .stat-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+
+    /* ── 기능 섹션 ── */
+    .section-title {
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 800; letter-spacing: -0.025em;
+      margin-bottom: 12px;
+    }
+    .section-sub { font-size: 1rem; color: var(--text2); margin-bottom: 48px; max-width: 560px; }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px;
+      transition: all 0.2s;
+    }
+    .feature-card:hover { border-color: rgba(91,127,255,0.4); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+    .feature-icon { font-size: 1.8rem; margin-bottom: 14px; }
+    .feature-title { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+    .feature-desc { font-size: 0.84rem; color: var(--text2); line-height: 1.65; }
+
+    /* ── 투명성 섹션 ── */
+    .principles { background: var(--surface); border-radius: 20px; padding: 48px; }
+    .principles-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 24px; margin-top: 32px;
+    }
+    .principle-item { display: flex; gap: 14px; }
+    .principle-check {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: rgba(46,204,138,0.15);
+      border: 1px solid rgba(46,204,138,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; flex-shrink: 0; margin-top: 2px;
+    }
+    .principle-text strong { display: block; font-size: 0.88rem; margin-bottom: 3px; }
+    .principle-text span { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+
+    /* ── CTA 섹션 ── */
+    .cta-section {
+      text-align: center;
+      background: linear-gradient(135deg, rgba(91,127,255,0.08), rgba(155,125,255,0.06));
+      border: 1px solid rgba(91,127,255,0.15);
+      border-radius: 24px;
+      padding: 64px 40px;
+      margin-bottom: 80px;
+    }
+    .cta-section h2 { font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 800; letter-spacing: -0.025em; margin-bottom: 16px; }
+    .cta-section p { font-size: 1rem; color: var(--text2); margin-bottom: 32px; }
+
+    /* ── 푸터 ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px max(24px, calc((100vw - 1100px) / 2));
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+    }
+    .footer-logo { font-size: 0.95rem; font-weight: 800; color: var(--muted); }
+    .footer-note { font-size: 0.75rem; color: var(--muted); }
+
+    /* ── 애니메이션 ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.6s ease both; }
+    .delay-1 { animation-delay: 0.1s; }
+    .delay-2 { animation-delay: 0.2s; }
+    .delay-3 { animation-delay: 0.3s; }
+
+    /* ── 반응형 ── */
+    @media (max-width: 700px) {
+      .mockup-summary { grid-template-columns: repeat(2,1fr); }
+      .stats-row { grid-template-columns: 1fr; }
+      .hero-title { font-size: 2rem; }
+      .principles { padding: 28px 20px; }
+      .cta-section { padding: 40px 20px; }
+      nav { padding: 0 16px; }
+    }
+    @media (max-width: 480px) {
+      section { padding-left: 16px; padding-right: 16px; }
+      .mockup-row .mockup-price { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── 네브바 ── -->
+<nav>
+  <span class="nav-logo">📊 SubValue</span>
+  <span class="nav-badge">데모</span>
+  <a href="subvalue.html?fresh=1" class="btn-demo">데모 시작하기 →</a>
+</nav>
+
+<!-- ── 히어로 ── -->
+<section class="hero">
+  <div class="hero-eyebrow fade-up">🔍 구독 가치 분석</div>
+  <h1 class="hero-title fade-up delay-1">
+    내 구독, 정말<br>
+    <span class="grad">돈 값을 하고 있나요?</span>
+  </h1>
+  <p class="hero-sub fade-up delay-2">
+    ChatGPT, Netflix, Adobe CC…<br>
+    실제 사용량 데이터로 구독 가치를 측정하고,<br>
+    낭비 중인 구독을 찾아드립니다.
+  </p>
+  <div class="hero-cta fade-up delay-3">
+    <a href="subvalue.html?fresh=1" class="btn-primary-lg">지금 무료로 확인하기</a>
+    <a href="#features" class="btn-secondary-lg">기능 살펴보기</a>
+  </div>
+  <p class="hero-note fade-up delay-3">설치 불필요 · 회원가입 불필요 · 데모 데이터로 바로 체험</p>
+
+  <!-- 목업 -->
+  <div class="mockup-wrap fade-up delay-3">
+    <div class="mockup-glow"></div>
+    <div class="mockup-card">
+      <div class="mockup-topbar">
+        <div class="mockup-dot" style="background:#f06060"></div>
+        <div class="mockup-dot" style="background:#f5a623"></div>
+        <div class="mockup-dot" style="background:#2ecc8a"></div>
+        <span style="font-size:0.72rem;color:var(--muted);margin-left:8px">SubValue — 대시보드</span>
+      </div>
+
+      <!-- 요약 -->
+      <div style="text-align:center;padding:16px 0 20px;border-bottom:1px solid var(--border);margin-bottom:16px">
+        <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">이번 달 구독 총액</div>
+        <div style="font-size:2rem;font-weight:900;letter-spacing:-0.04em;background:linear-gradient(135deg,#5b7fff,#9b7dff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">₩209,000</div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:4px">연간 ₩2,508,000 · 구독 9개 · 추적 중 8개</div>
+        <div style="display:inline-flex;align-items:center;gap:5px;margin-top:8px;background:rgba(46,204,138,0.1);border:1px solid rgba(46,204,138,0.2);border-radius:20px;padding:3px 12px;font-size:0.72rem;color:#2ecc8a">💡 월 ₩28,000 절감 가능</div>
+      </div>
+
+      <div class="mockup-summary">
+        <div class="mockup-scard">
+          <div class="mockup-slabel">해지 검토</div>
+          <div class="mockup-svalue" style="color:var(--red)">2<span style="font-size:0.8rem;font-weight:400;color:var(--muted)">개</span></div>
+        </div>
+        <div class="mockup-scard">
+          <div class="mockup-slabel">정상 유지</div>
+          <div class="mockup-svalue" style="color:var(--green)">5<span style="font-size:0.8rem;font-weight:400;color:var(--muted)">개</span></div>
+        </div>
+        <div class="mockup-scard">
+          <div class="mockup-slabel">데이터 부족</div>
+          <div class="mockup-svalue" style="color:var(--muted)">1<span style="font-size:0.8rem;font-weight:400;color:var(--muted)">개</span></div>
+        </div>
+        <div class="mockup-scard">
+          <div class="mockup-slabel">추적 중</div>
+          <div class="mockup-svalue">8<span style="font-size:0.8rem;font-weight:400;color:var(--muted)"> / 9</span></div>
+        </div>
+      </div>
+
+      <div class="mockup-list">
+        <div class="mockup-row">
+          <span class="mockup-icon">⌨️</span>
+          <div class="mockup-info">
+            <div class="mockup-name">Cursor</div>
+            <div class="mockup-plan">Pro · 추적 중</div>
+          </div>
+          <span class="mockup-badge b-green">유지</span>
+          <span class="mockup-price">₩27,000</span>
+        </div>
+        <div class="mockup-row">
+          <span class="mockup-icon">🤖</span>
+          <div class="mockup-info">
+            <div class="mockup-name">ChatGPT</div>
+            <div class="mockup-plan">Plus · 추적 중</div>
+          </div>
+          <span class="mockup-badge b-green">유지</span>
+          <span class="mockup-price">₩24,000</span>
+        </div>
+        <div class="mockup-row">
+          <span class="mockup-icon">🧠</span>
+          <div class="mockup-info">
+            <div class="mockup-name">Claude</div>
+            <div class="mockup-plan">Pro · 일부 추적</div>
+          </div>
+          <span class="mockup-badge b-red">해지 검토</span>
+          <span class="mockup-price">₩28,000</span>
+        </div>
+        <div class="mockup-row">
+          <span class="mockup-icon">📐</span>
+          <div class="mockup-info">
+            <div class="mockup-name">Adobe CC</div>
+            <div class="mockup-plan">All Apps · 추적 안 됨</div>
+          </div>
+          <span class="mockup-badge b-gray">데이터 부족</span>
+          <span class="mockup-price">₩74,000</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 숫자 ── -->
+<section style="padding-top:0">
+  <div class="stats-row">
+    <div class="stat-item">
+      <div class="stat-num">16</div>
+      <div class="stat-desc">구독 카테고리<br>AI·음악·게임·배달 등</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">7가지</div>
+      <div class="stat-desc">Value Score 구성 항목<br>사용량·비용·고유성 등</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">60+</div>
+      <div class="stat-desc">인식 가능한 구독 서비스<br>Melon·쿠팡·Xbox 포함</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 기능 ── -->
+<section id="features">
+  <h2 class="section-title">왜 SubValue인가요?</h2>
+  <p class="section-sub">감이 아닌 데이터로, 내 구독 포트폴리오를 분석합니다.</p>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">📊</div>
+      <div class="feature-title">Value Score</div>
+      <div class="feature-desc">사용 강도·일관성·비용 효율·기능 고유성 등 7가지 항목으로 구독 가치를 0~100점으로 수치화합니다.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📡</div>
+      <div class="feature-title">사용량 추적</div>
+      <div class="feature-desc">실제 사용 시간을 측정해 "얼마나 쓰는지"를 정확히 파악합니다. 추측이 아니라 실측 기반입니다.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🗓️</div>
+      <div class="feature-title">결제 캘린더</div>
+      <div class="feature-desc">이번 달 결제 일정을 한눈에 확인하세요. 갑작스러운 결제에 당황하지 않도록 미리 알려드립니다.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔔</div>
+      <div class="feature-title">스마트 알림</div>
+      <div class="feature-desc">결제 3일 전, 가격 인상 공지, 절감 기회를 적시에 알려드립니다. 알림 스팸은 없습니다.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔍</div>
+      <div class="feature-title">기능 중복 감지</div>
+      <div class="feature-desc">ChatGPT와 Claude처럼 비슷한 기능을 가진 서비스를 자동으로 감지하고, 28일 관찰 후 결론을 냅니다.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">💡</div>
+      <div class="feature-title">포트폴리오 최적화</div>
+      <div class="feature-desc">전체 구독을 한 화면에서 분석하고, 해지·다운그레이드·유지 추천과 예상 절감액을 제시합니다.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 투명성 ── -->
+<section>
+  <div class="principles">
+    <h2 class="section-title">정직한 분석을 약속합니다</h2>
+    <p style="color:var(--text2);font-size:0.95rem">SubValue는 추천의 근거를 숨기지 않습니다.</p>
+    <div class="principles-grid">
+      <div class="principle-item">
+        <div class="principle-check">✓</div>
+        <div class="principle-text">
+          <strong>측정 안 된 사용량은 0으로 처리하지 않습니다</strong>
+          <span>데이터 없으면 "판단 보류" — 근거 없는 해지 추천을 하지 않습니다.</span>
+        </div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-check">✓</div>
+        <div class="principle-text">
+          <strong>미확인 정보로 알림을 보내지 않습니다</strong>
+          <span>자동 감지된 가격 변경은 "확인 필요" 배지로만 표시합니다.</span>
+        </div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-check">✓</div>
+        <div class="principle-text">
+          <strong>"때문에"라는 표현을 쓰지 않습니다</strong>
+          <span>인과가 아닌 관측으로만 서술합니다. 결정은 사용자의 몫입니다.</span>
+        </div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-check">✓</div>
+        <div class="principle-text">
+          <strong>제휴 추천이 없습니다</strong>
+          <span>제휴 관계가 있는 경우 반드시 공시합니다. 현재는 제휴 없음.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section>
+  <div class="cta-section">
+    <h2>지금 내 구독을 분석해보세요</h2>
+    <p>설치나 회원가입 없이, 데모 데이터로 바로 체험할 수 있습니다.</p>
+    <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap">
+      <a href="subvalue.html?fresh=1" class="btn-primary-lg">데모로 바로 시작하기 →</a>
+    </div>
+    <p style="margin-top:16px;font-size:0.78rem;color:var(--muted)">
+      데모 데이터는 실제 사용량·가격과 다릅니다 · 로컬 저장 방식 · 서버로 데이터 전송 없음
+    </p>
+  </div>
+</section>
+
+<!-- ── 푸터 ── -->
+<footer>
+  <span class="footer-logo">📊 SubValue</span>
+  <span class="footer-note">데모 버전 v1.2 · Vanilla HTML/CSS/JS · 외부 서버 없음</span>
+</footer>
+
+</body>
+</html>
+
+<script>
+// 랜딩 → 앱 이동 시 sessionStorage에 플래그 심기
+document.querySelectorAll('a[href*="subvalue.html"]').forEach(function(a) {
+  a.addEventListener('click', function() {
+    sessionStorage.setItem('subvalue_from_landing', '1');
+    sessionStorage.setItem('subvalue_fresh', '1');
+  });
+});
+</script>
+</body>
+</html>
